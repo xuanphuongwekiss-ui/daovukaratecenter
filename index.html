@@ -345,5 +345,27 @@ function download(name,data,type){let a=document.createElement('a'),url=URL.crea
 function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!d.students||!d.classes||!d.settings)throw Error('invalid');if(confirm('Khôi phục dữ liệu từ tệp? Dữ liệu hiện tại sẽ được thay thế.')){db=d;save();renderAll();toast('Đã khôi phục dữ liệu')}}catch(err){toast('Tệp JSON không hợp lệ hoặc không đúng định dạng')}e.target.value=''};r.readAsText(f)}
 function resetData(){if(confirm('Khôi phục dữ liệu mẫu? Dữ liệu hiện tại sẽ bị thay thế. Hãy xuất bản sao lưu trước nếu cần.')){db=structuredClone(seed);save();renderAll();toast('Đã khôi phục dữ liệu mẫu')}}
 load();$('#attendanceDate').value=today();$('#attendanceMonth').value=today().slice(0,7);renderAll();
+// Hàm đồng bộ dữ liệu lên Supabase
+async function syncToSupabase(jsonData) {
+  if (!supabaseClient) {
+    alert("Chưa kết nối được với Supabase!");
+    return;
+  }
+  
+  const { data, error } = await supabaseClient
+    .from('app_state')
+    .upsert({ 
+      id: 'main_state', 
+      data: jsonData, 
+      updated_at: new Date().toISOString() 
+    }, { onConflict: 'id' });
+
+  if (error) {
+    console.error('Lỗi đồng bộ Supabase:', error);
+    alert('Đồng bộ thất bại: ' + error.message);
+  } else {
+    alert('Đã đồng bộ dữ liệu lên Supabase thành công!');
+  }
+}
 </script>
 </body></html>
