@@ -275,7 +275,7 @@ img,svg,canvas,video{max-width:100%;height:auto}
  </div>
  <div class="dashboard-grid"><div class="panel"><div class="panel-head"><div><h3>Tổng số võ sinh theo cấp đai</h3><p>Thống kê số lượng hiện tại</p></div><span class="tag">Tổng hợp</span></div><div id="beltChart" class="belt-summary"></div><div class="belt-total" id="beltTotal" style="margin-top:10px;padding:10px;background:#eef7f0;border-radius:9px;font-weight:800">Tổng số võ sinh: 0</div></div>
  <div class="panel"><div class="panel-head"><div><h3>Quản lý giới thiệu trên Trang chủ</h3><p>Admin cập nhật nội dung và hình ảnh; phần giới thiệu sẽ hiển thị ở Trang chủ.</p></div></div><div id="introAdminEditor" style="display:none;border-top:1px solid var(--line);padding-top:12px;margin-top:10px"><h4>Cập nhật nội dung giới thiệu</h4><div class="form-grid"><div class="field full"><label>Lịch sử Đạo Vũ</label><textarea id="introHistoryText" rows="3"></textarea><input type="file" id="introHistoryImage" accept="image/*"></div><div class="field full"><label>Thành phần & tổ chức</label><textarea id="introTeamText" rows="3"></textarea><input type="file" id="introTeamImage" accept="image/*"></div><div class="field full"><label>Huấn luyện & đào tạo</label><textarea id="introTrainingText" rows="3"></textarea><input type="file" id="introTrainingImage" accept="image/*"></div></div><button class="btn primary" onclick="saveCenterIntroduction()">Lưu giới thiệu</button></div></div></div>
-<div class="panel" id="questionAdminPanel" style="margin-top:18px"><div class="panel-head"><div><h3>💬 Hộp thư hỏi đáp từ phụ huynh</h3><p>Quản trị viên xem câu hỏi và gửi phản hồi cho phụ huynh.</p></div><button class="btn" onclick="loadAdminQuestions()">↻ Làm mới</button></div><div id="adminQuestionList"><div class="notice info">Đang tải câu hỏi...</div></div></div>
+<div class="panel" id="questionAdminPanel" style="margin-top:18px"><div class="panel-head"><div><h3>💬 Hộp thư hỏi đáp từ phụ huynh</h3><p>Quản trị viên xem câu hỏi và gửi phản hồi cho phụ huynh.</p></div><div class="actions"><button class="btn" onclick="loadAdminQuestions()">↻ Làm mới</button><button class="btn danger" onclick="deleteAllPublicQuestions()">🗑 Xóa toàn bộ trò chuyện</button></div></div><div id="adminQuestionList"><div class="notice info">Đang tải câu hỏi...</div></div></div>
 </section>
 <section class="section" id="page-students"><div class="panel pending-registration-panel" style="margin-bottom:16px"><div class="panel-head"><div><h3>📥 Đăng ký trực tuyến chờ duyệt</h3><p>Danh sách phụ huynh gửi từ Trang chủ; Admin kiểm tra trước khi thêm vào hồ sơ võ sinh.</p></div><span class="tag gold" id="pendingRegCount">0 hồ sơ</span></div><div class="table-wrap"><table><thead><tr><th>Ngày đăng ký</th><th>Học viên</th><th>Ngày sinh</th><th>Phụ huynh</th><th>Điện thoại</th><th>Lớp quan tâm</th><th>Thao tác</th></tr></thead><tbody id="pendingRegTable"></tbody></table></div></div><div class="welcome"><div><h2>Tra cứu thông tin võ sinh</h2><p>Tìm nhanh theo mã số hoặc họ tên; mở hồ sơ đầy đủ để cập nhật thông tin.</p></div><div class="actions"><button class="btn" onclick="exportStudents()">⇩ Xuất CSV</button><button class="btn primary" data-action="add-student">＋ Thêm võ sinh</button></div></div>
 <div class="toolbar"><div class="search"><input id="studentSearch" placeholder="⌕  Tra cứu mã số hoặc họ tên võ sinh..." oninput="renderStudents()"></div><select id="studentClassFilter" onchange="renderStudents()"><option value="">Tất cả lớp</option></select><select id="beltFilter" onchange="renderStudents()"><option value="">Tất cả cấp đai</option><option>Trắng</option><option>Vàng</option><option>Cam</option><option>Đỏ</option><option>Xanh lá (Xanh cấp 1)</option><option>Xanh đậm (Xanh cấp 2)</option><option>Chuẩn nâu (nửa xanh đậm, nửa nâu)</option><option>Nâu</option><option>Đen</option></select><select id="statusFilter" onchange="renderStudents()"><option value="">Tất cả trạng thái</option><option>Đang học</option><option>Tạm nghỉ</option><option>Đã nghỉ</option></select></div>
@@ -414,7 +414,7 @@ function studentMonthLedger(student,month){
  return {month,fee,paid,due:dueAmount,status,beforeJoin,future,waived,active};
 }
 function due(s,month=selectedBillingMonth()){return Math.max(0,tuitionFeeForMonth(s,month)-paidForMonth(s,month))}
-function statusTag(status){let cls=status==='Đang học'?'status-active':status==='Tạm nghỉ'?'status-paused':status==='Đã nghỉ'?'status-left':status==='Đã đóng'||status==='Có mặt'?'green':status==='Chưa đóng'||status==='Vắng'?'red':'gold';return `<span class="tag ${cls}">${esc(status)}</span>`}
+function statusTag(status){let cls=status==='Đang học'?'status-active':status==='Tạm nghỉ'?'status-paused':status==='Đã nghỉ'?'status-left':['Đã đóng','Đã hoàn thành','Miễn học phí','Miễn','Có mặt'].includes(status)?'green':['Chưa đóng','Chưa hoàn thành','Vắng'].includes(status)?'red':['Còn thiếu','Còn nợ','Đã nộp một phần','Tạm nghỉ','Chưa đến kỳ','Chưa nhập học'].includes(status)?'gold':'gold';return `<span class="tag ${cls}">${esc(status)}</span>`}
 function setPage(page){const allowed=role==='admin'?['home','dashboard','students','classes','attendance','tuition','notices','parent','reports','settings','reviews','grades','achievements','library']:role==='coach'?['home','students','attendance','reviews','grades','achievements','library']:['home','parent','library'];if(!allowed.includes(page)){toast('Bạn không có quyền truy cập mục này.');return}currentPage=page;document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('#pageTitle').textContent=({home:'Trang chủ',dashboard:'Bảng điều khiển',students:'Quản lý võ sinh',classes:'Lớp học & lịch tập',attendance:'Điểm danh',tuition:'Học phí & thu chi',notices:'Thông báo',parent:'Cổng phụ huynh',reports:'Báo cáo',settings:'Cài đặt võ đường',reviews:'Nhận xét hàng tháng',grades:'Kết quả học tập',achievements:'Thành tích',library:'Thư viện'})[page]||page;$('#sidebar').classList.remove('open');renderAll()}
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b)setPage(b.dataset.page)});
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));
@@ -464,8 +464,21 @@ async function loadPublicAnsweredQuestions(){
 }
 async function loadAdminQuestions(){
  const box=$('#adminQuestionList');if(!box)return;if(role!=='admin'){box.innerHTML='<div class="notice info">Chỉ Quản trị viên được xem và trả lời câu hỏi.</div>';return}
- try{const rows=await sbFetch('/rest/v1/public_questions?select=*&order=created_at.desc&limit=100');box.innerHTML=rows?.length?rows.map(q=>`<article class="notice-card" style="display:block;margin-bottom:12px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong>${escapeQuestion(q.name)} · ${escapeQuestion(q.phone)}</strong><span class="tag">${q.status==='answered'?'Đã trả lời':'Chờ trả lời'}</span></div><p style="margin:10px 0">${escapeQuestion(q.question)}</p><textarea id="questionAnswer${q.id}" rows="3" placeholder="Nhập nội dung trả lời...">${escapeQuestion(q.answer||'')}</textarea><div class="actions" style="margin-top:8px"><button class="btn primary" onclick="answerPublicQuestion(${Number(q.id)},'${String(q.id)}')">Lưu câu trả lời</button></div></article>`).join(''):'<div class="notice info">Chưa có câu hỏi nào.</div>'}
+ try{const rows=await sbFetch('/rest/v1/public_questions?select=*&order=created_at.desc&limit=100');box.innerHTML=rows?.length?rows.map(q=>`<article class="notice-card" style="display:block;margin-bottom:12px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong>${escapeQuestion(q.name)} · ${escapeQuestion(q.phone)}</strong><span class="tag">${q.status==='answered'?'Đã trả lời':'Chờ trả lời'}</span></div><p style="margin:10px 0">${escapeQuestion(q.question)}</p><textarea id="questionAnswer${q.id}" rows="3" placeholder="Nhập nội dung trả lời...">${escapeQuestion(q.answer||'')}</textarea><div class="actions" style="margin-top:8px"><button class="btn primary" onclick="answerPublicQuestion(${Number(q.id)},'${String(q.id)}')">Lưu câu trả lời</button><button class="btn danger" onclick="deletePublicQuestion(${Number(q.id)})">🗑 Xóa cuộc trò chuyện</button></div></article>`).join(''):'<div class="notice info">Chưa có câu hỏi nào.</div>'}
  catch(e){box.innerHTML='<div class="notice" style="background:#fff0f0;color:#a52830">Không tải được hộp thư: '+escapeQuestion(e.message)+'</div>'}
+}
+async function deletePublicQuestion(id){
+ if(role!=='admin')return toast('Chỉ Quản trị viên được xóa cuộc trò chuyện.');
+ if(!confirm('Bạn có chắc muốn xóa cuộc trò chuyện này? Dữ liệu sẽ bị xóa khỏi hệ thống và không thể khôi phục.'))return;
+ try{await sbFetch('/rest/v1/public_questions?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:{Prefer:'return=minimal'}});toast('Đã xóa cuộc trò chuyện');await loadAdminQuestions();await loadPublicAnsweredQuestions()}
+ catch(e){toast('Chưa xóa được: '+(e.message||'Lỗi kết nối'))}
+}
+async function deleteAllPublicQuestions(){
+ if(role!=='admin')return toast('Chỉ Quản trị viên được xóa cuộc trò chuyện.');
+ if(!confirm('CẢNH BÁO: Xóa TOÀN BỘ cuộc trò chuyện hỏi đáp của khách hàng? Dữ liệu sẽ bị xóa vĩnh viễn và không thể khôi phục.'))return;
+ if(!confirm('Xác nhận lần cuối: Bạn đồng ý xóa tất cả câu hỏi và câu trả lời?'))return;
+ try{await sbFetch('/rest/v1/public_questions?id=gt.0',{method:'DELETE',headers:{Prefer:'return=minimal'}});toast('Đã xóa toàn bộ cuộc trò chuyện');await loadAdminQuestions();await loadPublicAnsweredQuestions()}
+ catch(e){toast('Chưa xóa được: '+(e.message||'Lỗi kết nối'))}
 }
 async function answerPublicQuestion(id,key){
  if(role!=='admin')return toast('Chỉ Quản trị viên được trả lời.');const answer=$('#questionAnswer'+key)?.value.trim();if(!answer)return toast('Vui lòng nhập nội dung trả lời.');
@@ -953,3 +966,17 @@ function downloadGalleryImage(src,name){const a=document.createElement('a');a.hr
 
 </script>
 </body></html>
+
+<style id="dao-vu-status-colors">
+
+/* Mau trang thai thong nhat cho ho so, hoc phi va quy lop */
+.status-active,.tag.status-active{background:#e3f6e9!important;color:#146c37!important;border:1px solid #8fd0a3!important}
+.status-paused,.tag.status-paused{background:#fff3c4!important;color:#8b6200!important;border:1px solid #edcf63!important}
+.status-left,.tag.status-left{background:#ffe5e5!important;color:#ad2029!important;border:1px solid #efa5a8!important}
+.tag.green{background:#e3f6e9!important;color:#146c37!important;border:1px solid #8fd0a3!important}
+.tag.gold{background:#fff3c4!important;color:#8b6200!important;border:1px solid #edcf63!important}
+.tag.red{background:#ffe5e5!important;color:#ad2029!important;border:1px solid #efa5a8!important}
+#page-attendance label:has(input[data-fund-paid]:checked){display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:20px;background:#e3f6e9;color:#146c37;font-weight:700}
+#page-attendance label:has(input[data-fund-paid]:not(:checked)){display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:20px;background:#ffe5e5;color:#ad2029;font-weight:700}
+
+</style>
