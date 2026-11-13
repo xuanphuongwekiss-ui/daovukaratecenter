@@ -347,7 +347,7 @@ const seed={
  ], attendance:{}, payments:[]
 };
 let publicFeedNotices=null,publicFeedClasses=null,publicFeedBusy=false;
-let db,role='parent',currentPage='home',modalSaveFn=null,activeCoachName='',activeCoachClassId='',editingGradeId=null;
+let db,role='parent',currentPage='home',modalSaveFn=null,activeCoachName='',activeCoachClassId='',activeCoachClassPin='',editingGradeId=null;
 function load(){try{db=JSON.parse(localStorage.getItem('daoVuKarateDB'))||structuredClone(seed)}catch(e){db=structuredClone(seed)};if(!db.settings)db.settings=structuredClone(seed.settings);if(!db.settings.centerLogo)db.settings.centerLogo=seed.settings.centerLogo;if(!db.settings.clubLogo)db.settings.clubLogo=seed.settings.clubLogo;if(!db.classes)db.classes=[];if(!db.students)db.students=[];if(!db.notices)db.notices=[];if(!Array.isArray(db.registrationRequests))db.registrationRequests=[];if(!db.attendance)db.attendance={};if(!db.payments)db.payments=[];if(!Array.isArray(db.grades))db.grades=[];if(!Array.isArray(db.examSheets))db.examSheets=[];if(!Array.isArray(db.photos))db.photos=[];if(!Array.isArray(db.centerEvents))db.centerEvents=[];if(!Array.isArray(db.achievements))db.achievements=[];if(!Array.isArray(db.libraryImages))db.libraryImages=[];if(!Array.isArray(db.classFund))db.classFund=[];db.students.forEach(s=>{if(!Array.isArray(s.monthlyReviews))s.monthlyReviews=[]});/* Bảo toàn toàn bộ giao dịch cũ; chỉ loại khỏi phép tính các khoản chưa đối chiếu hoặc thuộc hồ sơ không còn trong danh sách, tuyệt đối không xóa/chuyển giao dịch. */save(false,false)}
 function save(show=true,sync=true){localStorage.setItem('daoVuKarateDB',JSON.stringify(db));if(show)toast('Đã lưu trên thiết bị');if(sync){if(!sbSession?.access_token){cloudMsg('CẢNH BÁO: Thay đổi mới chỉ lưu trên thiết bị này. Cổng phụ huynh chưa nhận dữ liệu mới vì Admin chưa có phiên đăng nhập Supabase Auth.');return}if(cloudConflict){cloudMsg('CẢNH BÁO: Có xung đột dữ liệu. Chưa đồng bộ để tránh mất dữ liệu; hãy xử lý xung đột trước.');return}uploadCloudSnapshot().then(()=>cloudMsg('Đã lưu trên thiết bị và đồng bộ dữ liệu mới lên Supabase. Cổng phụ huynh sẽ đọc bản mới nhất khi tra cứu lại.')).catch(e=>cloudMsg('CẢNH BÁO: Dữ liệu mới chỉ lưu trên thiết bị; đồng bộ Supabase thất bại: '+e.message))}}
 // Supabase cloud sync: manager-authenticated JSON snapshot; localStorage remains as offline fallback.
@@ -432,7 +432,51 @@ document.body.addEventListener('click',e=>{let a=e.target.closest('[data-action]
 $('#menuBtn').onclick=()=>$('#sidebar').classList.toggle('open');
 $('#reviewStudent').addEventListener('change',loadReviewForm);$('#reviewMonth').addEventListener('change',loadReviewForm);
 const ROLE_PINS={admin:'30112004'};
-$('#roleSelect').onchange=e=>{const requested=e.target.value;if(requested==='admin'){const pin=prompt('Nhập mã PIN Quản lý võ đường:');if(pin!==ROLE_PINS.admin){alert('Mã PIN không đúng.');e.target.value=role;return}}if(requested==='coach'){if(!db.classes.length){alert('Chưa có lớp học. Quản lý võ đường cần tạo lớp và đặt mật khẩu riêng.');e.target.value=role;return}const classPass=prompt('Nhập mật khẩu lớp để truy cập huấn luyện viên:');if(classPass===null){e.target.value=role;return}const enteredPass=String(classPass).trim();const matches=db.classes.filter(c=>c.classPin&&String(c.classPin).trim()===enteredPass);if(matches.length!==1){alert(matches.length>1?'Mật khẩu này đang được dùng cho nhiều lớp. Quản lý võ đường hãy đặt mật khẩu khác nhau cho từng lớp.':'Mật khẩu lớp không đúng.');e.target.value=role;return}const chosen=matches[0];activeCoachName=String(chosen.coach||('HLV lớp '+(chosen.name||chosen.id||'')));activeCoachClassId=String(chosen.id)}if(requested!=='coach'){activeCoachClassId='';activeCoachName=''}role=requested;document.body.classList.toggle('parent-mode',role==='parent');const names={admin:'Quản lý võ đường',coach:'Huấn luyện viên '+(activeCoachName||''),parent:'Phụ huynh'};$('#welcomeTitle').textContent='Xin chào, '+names[role]+'! 👋';$('#userAvatar').textContent={admin:'DV',coach:'HLV',parent:'PH'}[role];renderAll();if(requested==='coach'){setPage('attendance');renderAttendance();renderAttendanceSummary()}else setPage('home')};
+async function handleRoleSelect(e){
+ const requested=e.target.value;
+ if(requested==='admin'){
+  const pin=prompt('Nhập mã PIN Quản lý võ đường:');
+  if(pin!==ROLE_PINS.admin){alert('Mã PIN không đúng.');e.target.value=role;return}
+ }
+ if(requested==='coach'){
+  const classPass=prompt('Nhập mật khẩu lớp để truy cập huấn luyện viên:');
+  if(classPass===null){e.target.value=role;return}
+  const enteredPass=String(classPass).trim();
+  if(!enteredPass){alert('Vui lòng nhập mật khẩu lớp.');e.target.value=role;return}
+  try{
+   cloudMsg('Đang xác thực lớp và tải danh sách võ sinh từ Internet…');
+   const remote=await sbFetch('/rest/v1/rpc/coach_get_class',{method:'POST',body:JSON.stringify({p_class_pin:enteredPass})});
+   if(!remote||!remote.class||!remote.class.id){throw Error('Máy chủ không tìm thấy lớp phù hợp. Kiểm tra mật khẩu lớp và dữ liệu Admin đã đồng bộ chưa.');}
+   const chosen=remote.class, classId=String(chosen.id);
+   // Chỉ thay dữ liệu thuộc lớp đã xác thực; không chạm dữ liệu lớp khác trên thiết bị.
+   db.classes=(db.classes||[]).filter(c=>String(c.id)!==classId).concat([chosen]);
+   const remoteStudents=Array.isArray(remote.students)?remote.students:[];
+   db.students=(db.students||[]).filter(st=>String(st.classId)!==classId).concat(remoteStudents);
+   if(remote.attendance&&typeof remote.attendance==='object'){
+    db.attendance=db.attendance||{};
+    Object.keys(db.attendance).forEach(k=>{if(k.endsWith('_'+classId))delete db.attendance[k]});
+    Object.assign(db.attendance,remote.attendance);
+   }
+   activeCoachName=String(chosen.coach||('HLV lớp '+(chosen.name||classId)));
+   activeCoachClassId=classId;
+   activeCoachClassPin=enteredPass;
+   localStorage.setItem('daoVuKarateDB',JSON.stringify(db));
+  }catch(err){
+   activeCoachClassId='';activeCoachClassPin='';activeCoachName='';
+   alert('Không thể truy cập cổng HLV: '+(err.message||err)+'\n\nNếu báo không tìm thấy hàm coach_get_class, cần chạy phần SQL bổ sung tương ứng trong Supabase trước.');
+   cloudMsg('HLV chưa đăng nhập được: '+(err.message||err));e.target.value=role;return;
+  }
+ }
+ if(requested!=='coach'){activeCoachClassId='';activeCoachClassPin='';activeCoachName=''}
+ role=requested;document.body.classList.toggle('parent-mode',role==='parent');
+ const names={admin:'Quản lý võ đường',coach:'Huấn luyện viên '+(activeCoachName||''),parent:'Phụ huynh'};
+ $('#welcomeTitle').textContent='Xin chào, '+names[role]+'! 👋';
+ $('#userAvatar').textContent={admin:'DV',coach:'HLV',parent:'PH'}[role];
+ renderAll();
+ if(requested==='coach'){setPage('attendance');renderAttendance();renderAttendanceSummary();cloudMsg('HLV đã truy cập lớp '+(db.classes.find(c=>String(c.id)===activeCoachClassId)?.name||'')+'. Danh sách được tải từ Supabase.');}
+ else setPage('home');
+}
+$('#roleSelect').onchange=handleRoleSelect;
 const ROLE_PAGE_OPTIONS={coach:[['home','Trang chủ'],['students','Tra cứu thông tin võ sinh'],['attendance','Điểm danh'],['reviews','Nhận xét HLV'],['grades','Bảng điểm võ sinh (chỉ xem)'],['achievements','Thành tích'],['library','Thư viện']],parent:[['home','Trang chủ'],['parent','Cổng phụ huynh'],['library','Thư viện']]};
 function renderRolePermissionEditor(){const host=$('#rolePermissionEditor');if(!host)return;if(role!=='admin'){$('#rolePermissionPanel').style.display='none';return}$('#rolePermissionPanel').style.display='';const perms=db.settings?.rolePermissions||{};host.innerHTML=Object.entries(ROLE_PAGE_OPTIONS).map(([r,opts])=>`<div style="padding:14px 0;border-top:1px solid var(--line)"><strong>${r==='coach'?'Huấn luyện viên':'Phụ huynh'}</strong><div class="form-grid" style="margin-top:10px">${opts.map(([key,label])=>`<label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" data-role-permission="${r}" value="${key}" ${(r==='coach'&&key==='attendance')?'checked disabled':((Array.isArray(perms[r])?perms[r]:opts.map(x=>x[0])).includes(key)?'checked':'')}> ${label}${r==='coach'&&key==='attendance'?' (quyền bắt buộc)':''}</label>`).join('')}</div></div>`).join('')}
 function saveRolePermissions(){if(role!=='admin')return toast('Chỉ Quản lý võ đường được phân quyền.');db.settings=db.settings||{};db.settings.rolePermissions={};for(const r of Object.keys(ROLE_PAGE_OPTIONS)){db.settings.rolePermissions[r]=[...document.querySelectorAll(`[data-role-permission="${r}"]:checked`)].map(x=>x.value);if(r==='coach'&&!db.settings.rolePermissions[r].includes('attendance'))db.settings.rolePermissions[r].push('attendance');if(!db.settings.rolePermissions[r].includes('home'))db.settings.rolePermissions[r].unshift('home')}save();renderRolePermissionEditor();toast('Đã lưu phân quyền hiển thị cho Huấn luyện viên và Phụ huynh')}
@@ -718,7 +762,7 @@ async function submitCoachStudentToCloud(student){
   monthlyReviews:[]
  };
  if(!clean.id||!clean.name||!clean.parentPhone)throw Error('Cần có mã võ sinh, họ tên và số điện thoại phụ huynh.');
- const result=await sbFetch('/rest/v1/rpc/coach_add_student',{method:'POST',body:JSON.stringify({p_class_id:clean.classId,p_class_pin:String(db.classes.find(c=>String(c.id)===clean.classId)?.classPin||''),p_student:clean})});
+ const result=await sbFetch('/rest/v1/rpc/coach_add_student',{method:'POST',body:JSON.stringify({p_class_id:clean.classId,p_class_pin:String(activeCoachClassPin||db.classes.find(c=>String(c.id)===clean.classId)?.classPin||''),p_student:clean})});
  if(result?.ok===false)throw Error(result.message||'Máy chủ từ chối hồ sơ.');
  return result;
 }
