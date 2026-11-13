@@ -643,6 +643,14 @@ button,.btn,input,select,textarea{font-family:inherit}
 @media(max-width:760px){.management-card{align-items:stretch;flex-direction:column;padding:23px 20px}.management-cta{width:100%;box-sizing:border-box}.links .management-link{display:inline-block}}
 </style>
 
+
+<style id="dao-vu-parent-lookup-style">
+.lookup-card{background:#fff;border:1px solid #dce9df;border-radius:18px;padding:30px 34px;margin:0 0 22px;box-shadow:0 12px 34px rgba(18,70,43,.07)}
+.lookup-heading{text-align:center;max-width:760px;margin:0 auto 22px}.lookup-heading h2{font-size:clamp(25px,3vw,34px);color:#174b32;margin:8px 0}.lookup-heading p{color:#52665a;line-height:1.65;margin:0}
+.lookup-form{max-width:560px;margin:auto;display:grid;gap:9px}.lookup-form label{font-size:14px;font-weight:750;color:#244b35;margin-top:5px}.lookup-form input{width:100%;box-sizing:border-box;padding:13px 14px;border:1px solid #cbd9ce;border-radius:9px;font:inherit;font-size:16px;background:#fff}.lookup-form input:focus{outline:3px solid rgba(22,131,74,.14);border-color:#16834a}.lookup-submit{margin-top:9px;background:#16834a;color:white;border:0;padding:14px;border-radius:9px;font-weight:800;cursor:pointer}.lookup-submit:disabled{opacity:.65;cursor:wait}.lookup-message{max-width:760px;margin:14px auto 0;text-align:center;font-size:14px}.lookup-message.error{color:#a52830}.lookup-message.ok{color:#16713f}.lookup-message.info{color:#52665a}.lookup-result{max-width:900px;margin:18px auto 0}.lookup-result:empty{display:none}.lookup-person{padding:18px;border-radius:12px;background:#f3f8f4;border-left:4px solid #16834a;margin-bottom:14px}.lookup-person h3{margin:0 0 10px;color:#174b32}.lookup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px}.lookup-field{font-size:14px;color:#53665a}.lookup-field b{display:block;color:#203c2c;margin-top:3px}.lookup-panel{border:1px solid #e1e9e3;border-radius:12px;padding:16px;margin-top:12px;overflow:auto}.lookup-panel h3{margin:0 0 12px;color:#174b32;font-size:18px}.lookup-table{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}.lookup-table th,.lookup-table td{padding:9px 10px;border-bottom:1px solid #e6ece7;text-align:left;vertical-align:top}.lookup-table th{background:#f3f8f4;color:#244b35}.lookup-empty{color:#718078;font-size:14px}.lookup-note{max-width:760px;text-align:center;color:#748078;font-size:12px;line-height:1.6;margin:16px auto 0}
+@media(max-width:760px){.lookup-card{padding:22px 16px}.lookup-grid{grid-template-columns:1fr}.lookup-table{font-size:13px}}
+</style>
+
 </head>
 <body>
 <div class="top"><div class="wrap"><span>✦ Trung tâm đào tạo năng khiếu và phát triển thể chất</span><span id="topContact">☎ Đang cập nhật thông tin liên hệ</span></div></div>
@@ -704,17 +712,24 @@ button,.btn,input,select,textarea{font-family:inherit}
 
 <section class="management-access" id="goc-phu-huynh">
   <div class="wrap">
+    <div class="lookup-card" id="tra-cuu-thong-tin">
+      <div class="lookup-heading"><span class="management-kicker">CỔNG THÔNG TIN PHỤ HUYNH</span><h2>TRA CỨU THÔNG TIN</h2><p>Nhập mã võ sinh và số điện thoại phụ huynh đã đăng ký tại Trung tâm để xem thông tin học tập của con.</p></div>
+      <form class="lookup-form" id="daoVuParentLookupForm" onsubmit="return daoVuParentLookup(event)">
+        <label for="daoVuStudentCode">Mã võ sinh</label><input id="daoVuStudentCode" autocomplete="off" placeholder="Ví dụ: DV001" required>
+        <label for="daoVuParentPhone">Số điện thoại phụ huynh đã đăng ký</label><input id="daoVuParentPhone" inputmode="tel" autocomplete="tel" placeholder="Nhập số điện thoại đã đăng ký" required>
+        <button class="btn lookup-submit" id="daoVuLookupButton" type="submit">TRA CỨU THÔNG TIN</button>
+      </form>
+      <div id="daoVuLookupMessage" class="lookup-message" role="status" aria-live="polite"></div>
+      <div id="daoVuLookupResult" class="lookup-result" aria-live="polite"></div>
+      <p class="lookup-note">Thông tin chỉ hiển thị khi mã võ sinh và số điện thoại khớp với hồ sơ Trung tâm đang lưu. Nếu đổi số điện thoại, vui lòng liên hệ Admin để cập nhật.</p>
+    </div>
     <div class="management-card">
-      <div class="management-copy">
-        <span class="management-kicker">KẾT NỐI CÙNG ĐẠO VŨ</span>
-        <h2>HỆ THỐNG QUẢN LÝ ĐẠO VŨ</h2>
-        <p>Dành cho Phụ huynh, Huấn luyện viên và Quản trị viên. Truy cập hệ thống hiện có để tra cứu và quản lý thông tin võ sinh.</p>
-      </div>
-      <a class="btn management-cta" href="/quan-ly.html">TRUY CẬP HỆ THỐNG <span aria-hidden="true">→</span></a>
+      <div class="management-copy"><span class="management-kicker">DÀNH CHO QUẢN TRỊ VIÊN & HUẤN LUYỆN VIÊN</span><h2>HỆ THỐNG QUẢN LÝ ĐẠO VŨ</h2><p>Admin và Huấn luyện viên tiếp tục sử dụng hệ thống quản lý hiện tại bằng tài khoản được cấp. Có thể truy cập trực tiếp, không cần đăng nhập qua trang chủ.</p></div>
+      <a class="btn management-cta" href="/quan-ly.html">MỞ HỆ THỐNG QUẢN LÝ <span aria-hidden="true">→</span></a>
     </div>
   </div>
 </section>
-<footer><div class="wrap"><div class="foot"><div><b id="footName">TRUNG TÂM ĐẠO VŨ</b><p id="footSlogan">Phát triển tài năng – Rèn luyện nhân cách – Kiến tạo tương lai</p><small>Ươm mầm tài năng – Chắp cánh tương lai</small></div><div><b>Khám phá</b><p><a href="#about">Về Đạo Vũ</a><br><a href="#programs">Chương trình đào tạo</a><br><a href="#activities">Hoạt động</a></p></div><div><b>Liên hệ</b><p id="footContact">Thông tin liên hệ sẽ được cập nhật</p></div></div><div class="copyright">© 2026 Trung tâm Đào tạo và Phát triển Năng khiếu Đạo Vũ. Bản demo giao diện – chưa kết nối hệ thống quản trị thực tế.</div></div></footer>
+<footer><div class="wrap"><div class="foot"><div><b id="footName">TRUNG TÂM ĐẠO VŨ</b><p id="footSlogan">Phát triển tài năng – Rèn luyện nhân cách – Kiến tạo tương lai</p><small>Ươm mầm tài năng – Chắp cánh tương lai</small></div><div><b>Khám phá</b><p><a href="#about">Về Đạo Vũ</a><br><a href="#programs">Chương trình đào tạo</a><br><a href="#activities">Hoạt động</a></p></div><div><b>Liên hệ</b><p id="footContact">Thông tin liên hệ sẽ được cập nhật</p></div></div><div class="copyright">© 2026 Trung tâm Đào tạo và Phát triển Năng khiếu Đạo Vũ.</div></div></footer>
 <div class="editor" id="editor"><div class="panel"><div class="panel-head"><h2>⚙ Quản trị thông tin Trung tâm</h2><button class="btn outline" onclick="closeEditor()">Đóng ✕</button></div><div class="panel-body"><p style="margin-top:0;color:#607469">Bản demo cho phép thử thay đổi thông tin. Dữ liệu lưu trên trình duyệt này để xem trước, chưa cập nhật lên website đang hoạt động.</p>
 <div class="formgrid">
 <div class="field full"><label>Tên trung tâm</label><input id="fName"></div>
@@ -950,4 +965,19 @@ function changeSlide(dir){const slides=(data.heroImages||[]).filter(Boolean);if(
 render();
 getArticleSession().then(()=>loadArticlesFromCloud());
 </script>
+<script id="dao-vu-parent-lookup-script">
+const DAO_VU_PARENT_SUPABASE={url:'https://jndvtnpxepuwqutkkzin.supabase.co',key:'sb_publishable_rmBZOP_LspTasvW1t7LQhQ_seppbkWW'};
+function daoVuEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function daoVuDate(v){if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?daoVuEsc(v):d.toLocaleDateString('vi-VN')}
+function daoVuPanel(title,html){return `<section class="lookup-panel"><h3>${title}</h3>${html}</section>`}
+async function daoVuParentLookup(event){if(event)event.preventDefault();const code=document.getElementById('daoVuStudentCode').value.trim().toLowerCase();const phone=document.getElementById('daoVuParentPhone').value.replace(/\D/g,'');const msg=document.getElementById('daoVuLookupMessage'),out=document.getElementById('daoVuLookupResult'),btn=document.getElementById('daoVuLookupButton');out.innerHTML='';msg.className='lookup-message info';if(!code||!phone){msg.textContent='Vui lòng nhập đầy đủ mã võ sinh và số điện thoại phụ huynh.';return false}btn.disabled=true;btn.textContent='ĐANG XÁC MINH…';msg.textContent='Đang xác minh thông tin với hồ sơ của Trung tâm…';try{const response=await fetch(DAO_VU_PARENT_SUPABASE.url+'/rest/v1/rpc/parent_lookup_student',{method:'POST',headers:{apikey:DAO_VU_PARENT_SUPABASE.key,Authorization:'Bearer '+DAO_VU_PARENT_SUPABASE.key,'Content-Type':'application/json'},body:JSON.stringify({p_student_code:code,p_parent_phone:phone})});const raw=await response.text();let data=null;try{data=raw?JSON.parse(raw):null}catch{}if(!response.ok)throw new Error('HTTP '+response.status);if(!data||!Array.isArray(data.students)||data.students.length!==1){msg.className='lookup-message error';msg.textContent='Không xác minh được thông tin. Vui lòng kiểm tra lại mã võ sinh và số điện thoại đã đăng ký.';return false}
+const st=data.students[0],classes=Array.isArray(data.classes)?data.classes:[],cls=classes.find(x=>String(x.id)===String(st.classId));const attendance=data.attendance&&typeof data.attendance==='object'?data.attendance:{};const attRows=Object.entries(attendance).map(([k,v])=>({key:k,status:v?.[st.id]})).filter(x=>x.status).sort((a,b)=>b.key.localeCompare(a.key)).slice(0,30);const attendanceHtml=attRows.length?`<table class="lookup-table"><thead><tr><th>Ngày / buổi</th><th>Kết quả</th></tr></thead><tbody>${attRows.map(x=>`<tr><td>${daoVuEsc(x.key.replace('_',' · '))}</td><td>${daoVuEsc(x.status)}</td></tr>`).join('')}</tbody></table>`:'<p class="lookup-empty">Chưa có dữ liệu điểm danh được cập nhật.</p>';
+const grades=(Array.isArray(data.grades)?data.grades:[]).filter(x=>String(x.studentId)===String(st.id)).sort((a,b)=>String(b.date).localeCompare(String(a.date)));const gradesHtml=grades.length?`<table class="lookup-table"><thead><tr><th>Ngày</th><th>Nội dung</th><th>Điểm</th><th>Nhận xét</th></tr></thead><tbody>${grades.map(g=>`<tr><td>${daoVuDate(g.date)}</td><td>${daoVuEsc(g.subject||'')}</td><td>${daoVuEsc(g.score??'—')} / ${daoVuEsc(g.maxScore??'—')}</td><td>${daoVuEsc(g.comment||'')}</td></tr>`).join('')}</tbody></table>`:'<p class="lookup-empty">Chưa có kết quả kiểm tra được cập nhật.</p>';
+const sheets=(Array.isArray(data.examSheets)?data.examSheets:[]).map(sh=>({...sh,rows:(sh.rows||[]).filter(r=>String(r.studentId)===String(st.id))})).filter(sh=>sh.rows.length);const examHtml=sheets.length?`<table class="lookup-table"><thead><tr><th>Đợt thi</th><th>Ngày thi</th><th>Cấp đai</th><th>Tổng điểm</th><th>Kết quả</th></tr></thead><tbody>${sheets.flatMap(sh=>sh.rows.map(r=>`<tr><td>${daoVuEsc(sh.title||'')}</td><td>${daoVuDate(sh.date)}</td><td>${daoVuEsc(r.beltAtExam||st.belt||'—')}</td><td>${['kata','kumite','kihon','fitness','breaking'].reduce((n,k)=>n+(Number(r[k])||0),0)} / 50</td><td>${daoVuEsc(r.result||'Chưa xét')}</td></tr>`)).join('')}</tbody></table>`:'<p class="lookup-empty">Chưa có kết quả thi đai được cập nhật.</p>';
+const notices=(Array.isArray(data.notices)?data.notices:[]).filter(n=>!n.studentId||String(n.studentId)===String(st.id)).filter(n=>String(n.audience||'').toLocaleLowerCase('vi')!=='chỉ huấn luyện viên').sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date))).slice(0,10);const noticesHtml=notices.length?notices.map(n=>`<article style="padding:10px 0;border-bottom:1px solid #e6ece7"><b>${daoVuEsc(n.title||'Thông báo')}</b><div class="lookup-empty">${daoVuDate(n.date)} · ${daoVuEsc(n.audience||'Thông báo chung')}</div><p style="white-space:pre-wrap;margin:6px 0">${daoVuEsc(n.body||'')}</p></article>`).join(''):'<p class="lookup-empty">Hiện chưa có thông báo.</p>';
+const pay=Array.isArray(data.payments)?data.payments:(Array.isArray(st.payments)?st.payments:[]);const payHtml=pay.length?`<table class="lookup-table"><thead><tr><th>Thời gian</th><th>Số tiền</th><th>Ghi chú</th></tr></thead><tbody>${pay.map(p=>`<tr><td>${daoVuEsc(p.month||p.date||p.createdAt||'—')}</td><td>${daoVuEsc((Number(p.amount)||0).toLocaleString('vi-VN'))} đ</td><td>${daoVuEsc(p.note||p.method||p.description||'')}</td></tr>`).join('')}</tbody></table>`:'<p class="lookup-empty">Chưa có giao dịch học phí trong dữ liệu tra cứu.</p>';
+const details=[['Mã võ sinh',st.id],['Họ và tên',st.name],['Ngày sinh',st.dob||st.birthYear],['Lớp',cls?.name||st.className||st.classId],['Cấp đai hiện tại',st.belt],['Tình trạng',st.status],['Ngày nhập học',st.joined],['Nơi sinh',st.birthPlace]];out.innerHTML=`<div class="lookup-person"><h3>Thông tin võ sinh</h3><div class="lookup-grid">${details.filter(x=>x[1]!==undefined&&x[1]!==null&&x[1]!=='').map(x=>`<div class="lookup-field">${daoVuEsc(x[0])}<b>${daoVuEsc(x[1])}</b></div>`).join('')}</div></div>${daoVuPanel('Học phí & giao dịch',payHtml)}${daoVuPanel('Lịch sử chuyên cần',attendanceHtml)}${daoVuPanel('Kết quả học tập',gradesHtml)}${daoVuPanel('Kết quả thi đai',examHtml)}${daoVuPanel('Thông báo từ Trung tâm',noticesHtml)}`;msg.className='lookup-message ok';msg.textContent='Xác minh thành công. Đây là thông tin được trả về từ hệ thống Đạo Vũ.';
+}catch(err){msg.className='lookup-message error';msg.textContent='Hiện chưa thể kết nối cổng tra cứu. Vui lòng thử lại sau hoặc liên hệ Trung tâm.';console.error('Đạo Vũ parent lookup:',err)}finally{btn.disabled=false;btn.textContent='TRA CỨU THÔNG TIN'}return false}
+</script>
+
 </body></html>
