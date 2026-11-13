@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /quan-ly.html
+
 Sitemap: https://daovu-karate-center.netlify.app/sitemap.xml
