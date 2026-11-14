@@ -366,10 +366,62 @@ async function fetchCloudRow(){if(!sbSession?.access_token)return null;const use
 function startCloudAutoSync(){if(remotePollTimer)clearInterval(remotePollTimer);if(!sbSession?.access_token)return;remotePollTimer=setInterval(()=>{pollCloudForChanges();if(role==='admin')refreshPublicRegistrations();},12000);window.addEventListener('focus',()=>{pollCloudForChanges();if(role==='admin')refreshPublicRegistrations()});document.addEventListener('visibilitychange',()=>{if(!document.hidden){pollCloudForChanges();if(role==='admin')refreshPublicRegistrations()}});}
 async function pollCloudForChanges(){if(!sbSession?.access_token||remotePollBusy||cloudBusy||document.hidden)return;remotePollBusy=true;try{const row=await fetchCloudRow();if(!row?.payload||!row.updated_at)return;const remoteTime=Date.parse(row.updated_at),knownTime=Date.parse(lastCloudUpdatedAt||'1970-01-01T00:00:00Z');if(!Number.isFinite(remoteTime)||remoteTime<=knownTime)return;const localJson=JSON.stringify(db);if(lastCloudSnapshotJson!==null&&localJson!==lastCloudSnapshotJson){pendingRemoteRow=row;cloudConflict=true;cloudMsg('Phát hiện dữ liệu mới từ thiết bị khác, nhưng thiết bị này cũng có thay đổi chưa đồng bộ. Hệ thống tạm dừng ghi để tránh mất dữ liệu. Chọn Dùng bản Internet hoặc Ghi đè bằng bản này.');return}db=row.payload;localStorage.setItem('daoVuKarateDB',JSON.stringify(db));lastCloudSnapshotJson=JSON.stringify(db);lastCloudUpdatedAt=row.updated_at;pendingRemoteRow=null;cloudConflict=false;renderAll();cloudMsg('Đã tự động nhận dữ liệu mới nhất từ thiết bị khác.')}catch(e){cloudMsg('Chưa kiểm tra được dữ liệu mới: '+e.message)}finally{remotePollBusy=false}}
 async function supabaseSignIn(){try{if(!saveSupabaseConfig())return;const email=$('#sbEmail').value.trim(),password=$('#sbPassword').value;if(!email||!password)return cloudMsg('Nhập email và mật khẩu tài khoản Supabase Auth.');cloudMsg('Đang đăng nhập…');const r=await fetch(sbConfig.url+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:sbConfig.key,'Content-Type':'application/json'},body:JSON.stringify({email,password})});const d=await r.json();if(!r.ok)throw Error(d.msg||d.message||'Đăng nhập thất bại');sbSession=d;sessionStorage.setItem(SB_SESSION_KEY,JSON.stringify(d));if(!d.user?.id||!d.access_token)throw Error('Supabase không trả về phiên đăng nhập hợp lệ.');const prof=await sbFetch('/rest/v1/profiles?user_id=eq.'+encodeURIComponent(d.user.id)+'&select=user_id,role,type');if(!prof?.length||String(prof[0].role||'').toLowerCase()!=='admin'||String(prof[0].type||'').toLowerCase()!=='admin')throw Error('Tài khoản chưa được cấp quyền quản trị trong profiles (cần role=admin và type=admin).');const row=await fetchCloudRow();if(row?.payload){db=row.payload;localStorage.setItem('daoVuKarateDB',JSON.stringify(db));lastCloudSnapshotJson=JSON.stringify(db);localStorage.setItem(SB_LAST_SYNC_KEY,lastCloudSnapshotJson);lastCloudUpdatedAt=row.updated_at||null;renderAll();cloudMsg('Đăng nhập thành công. Đã tải dữ liệu từ Supabase; tự kiểm tra thay đổi mỗi 12 giây và khi quay lại tab.')}else{lastCloudSnapshotJson=JSON.stringify(db);await uploadCloudSnapshot();cloudMsg('Đăng nhập thành công. Chưa có bản đám mây nên đã tải dữ liệu hiện tại lên lần đầu.')}$('#sbPassword').value='';startCloudAutoSync();}catch(e){cloudMsg('Lỗi: '+e.message)}}
-async function uploadCloudSnapshot(){if(!sbSession?.access_token)throw Error('Bạn cần đăng nhập Supabase Auth trước.');if(cloudConflict)throw Error('Đang có xung đột dữ liệu. Hãy xử lý trước khi ghi lên Internet.');const snapshot=JSON.parse(JSON.stringify(db)),snapshotJson=JSON.stringify(snapshot),userId=sbSession.user.id,stamp=new Date().toISOString();cloudWriteQueue=cloudWriteQueue.catch(()=>{}).then(async()=>{cloudBusy=true;cloudMsg('Đang đồng bộ dữ liệu lên Internet…');try{await sbFetch('/rest/v1/app_state?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:userId,payload:snapshot,updated_at:stamp})});lastCloudSnapshotJson=snapshotJson;localStorage.setItem(SB_LAST_SYNC_KEY,snapshotJson);lastCloudUpdatedAt=stamp;return true}finally{cloudBusy=false}});return cloudWriteQueue}
+async function uploadCloudSnapshot(){
+ if(!sbSession?.access_token)throw Error('Bạn cần đăng nhập Supabase Auth trước.');
+ if(cloudConflict)throw Error('Đang có xung đột dữ liệu. Hãy kiểm tra và xử lý trước khi ghi lên Internet.');
+ cloudWriteQueue=cloudWriteQueue.catch(()=>{}).then(async()=>{
+  cloudBusy=true;cloudMsg('Đang kiểm tra phiên bản dữ liệu trên Internet…');
+  try{
+   const userId=sbSession.user.id;
+   const remote=await fetchCloudRow();
+   if(remote?.payload){
+    const expected=lastCloudUpdatedAt;
+    if(!expected||Date.parse(remote.updated_at)!==Date.parse(expected)){
+     pendingRemoteRow=remote;cloudConflict=true;
+     cloudMsg('Dữ liệu Internet đã thay đổi kể từ lần đồng bộ trước. Hệ thống đã dừng ghi để bảo vệ dữ liệu. Hãy kiểm tra bản Internet và bản trên thiết bị.');
+     throw Error('Phát hiện phiên bản Internet mới hơn; chưa ghi đè dữ liệu.');
+    }
+    const snapshot=JSON.parse(JSON.stringify(db)),snapshotJson=JSON.stringify(snapshot),stamp=new Date().toISOString();
+    const filter='/rest/v1/app_state?user_id=eq.'+encodeURIComponent(userId)+'&updated_at=eq.'+encodeURIComponent(remote.updated_at);
+    const rows=await sbFetch(filter,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({payload:snapshot,updated_at:stamp})});
+    if(!Array.isArray(rows)||!rows.length){
+     const latest=await fetchCloudRow();if(latest?.payload){pendingRemoteRow=latest;cloudConflict=true;}
+     cloudMsg('Bản Internet vừa được thiết bị khác cập nhật. Hệ thống đã chặn lần ghi này để tránh mất dữ liệu.');
+     throw Error('Phiên bản dữ liệu đã thay đổi trong lúc đồng bộ; vui lòng kiểm tra xung đột.');
+    }
+    lastCloudSnapshotJson=snapshotJson;localStorage.setItem(SB_LAST_SYNC_KEY,snapshotJson);lastCloudUpdatedAt=rows[0].updated_at||stamp;
+   }else{
+    if(lastCloudUpdatedAt){cloudConflict=true;cloudMsg('Không tìm thấy bản Internet đã đồng bộ trước đây. Hệ thống dừng ghi để bảo vệ dữ liệu.');throw Error('Bản Internet không còn được tìm thấy; không tự tạo bản thay thế.');}
+    const snapshot=JSON.parse(JSON.stringify(db)),snapshotJson=JSON.stringify(snapshot),stamp=new Date().toISOString();
+    await sbFetch('/rest/v1/app_state',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({user_id:userId,payload:snapshot,updated_at:stamp})});
+    lastCloudSnapshotJson=snapshotJson;localStorage.setItem(SB_LAST_SYNC_KEY,snapshotJson);lastCloudUpdatedAt=stamp;
+   }
+   return true;
+  }finally{cloudBusy=false}
+ });
+ return cloudWriteQueue;
+}
 async function syncCloudNow(){try{if(!sbSession?.access_token)return cloudMsg('Hãy đăng nhập Supabase Auth trước khi đồng bộ.');if(cloudConflict)return cloudMsg('Hãy chọn Dùng bản Internet hoặc Ghi đè bằng bản này trước.');await uploadCloudSnapshot();cloudMsg('Đã đồng bộ dữ liệu hiện tại lên Supabase. Các thiết bị Admin khác sẽ tự nhận trong tối đa khoảng 12 giây.')}catch(e){cloudMsg('Lỗi đồng bộ: '+e.message)}}
 async function useRemoteCloudVersion(){if(!cloudConflict||!pendingRemoteRow?.payload)return;if(!confirm('Thay dữ liệu đang có trên thiết bị này bằng bản mới nhất trên Internet? Những thay đổi chưa đồng bộ trên thiết bị này sẽ bị thay thế.'))return;db=pendingRemoteRow.payload;localStorage.setItem('daoVuKarateDB',JSON.stringify(db));lastCloudSnapshotJson=JSON.stringify(db);localStorage.setItem(SB_LAST_SYNC_KEY,lastCloudSnapshotJson);lastCloudUpdatedAt=pendingRemoteRow.updated_at;pendingRemoteRow=null;cloudConflict=false;renderAll();cloudMsg('Đã tải và sử dụng bản dữ liệu mới nhất trên Internet.')}
-async function overwriteRemoteWithLocal(){if(!cloudConflict)return;if(!confirm('Ghi đè dữ liệu trên Internet bằng dữ liệu hiện có trên thiết bị này? Thay đổi từ thiết bị khác có thể bị mất. Chỉ chọn nếu chắc chắn.'))return;cloudConflict=false;pendingRemoteRow=null;try{await uploadCloudSnapshot();cloudMsg('Đã ghi đè bản Internet bằng dữ liệu trên thiết bị này.')}catch(e){cloudConflict=true;cloudMsg('Không ghi được: '+e.message)}}
+async function overwriteRemoteWithLocal(){
+ if(!cloudConflict)return;
+ if(!confirm('Bạn xác nhận chủ động thay toàn bộ bản Internet bằng dữ liệu trên thiết bị này? Dữ liệu mới chỉ có trên Internet có thể bị mất. Chỉ tiếp tục nếu đã đối chiếu và có bản sao lưu.'))return;
+ try{
+  cloudBusy=true;const userId=sbSession.user.id,remote=await fetchCloudRow(),snapshot=JSON.parse(JSON.stringify(db)),snapshotJson=JSON.stringify(snapshot),stamp=new Date().toISOString();
+  if(remote?.payload){
+   const filter='/rest/v1/app_state?user_id=eq.'+encodeURIComponent(userId)+'&updated_at=eq.'+encodeURIComponent(remote.updated_at);
+   const rows=await sbFetch(filter,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({payload:snapshot,updated_at:stamp})});
+   if(!Array.isArray(rows)||!rows.length)throw Error('Bản Internet vừa thay đổi. Không ghi đè; hãy tải lại và đối chiếu lần nữa.');
+   lastCloudUpdatedAt=rows[0].updated_at||stamp;
+  }else{
+   await sbFetch('/rest/v1/app_state',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({user_id:userId,payload:snapshot,updated_at:stamp})});
+   lastCloudUpdatedAt=stamp;
+  }
+  lastCloudSnapshotJson=snapshotJson;localStorage.setItem(SB_LAST_SYNC_KEY,snapshotJson);pendingRemoteRow=null;cloudConflict=false;
+  cloudMsg('Đã ghi bản thiết bị lên Internet sau khi bạn xác nhận.');
+ }catch(e){cloudConflict=true;cloudMsg('Không ghi được: '+e.message)}
+ finally{cloudBusy=false}
+}
 async function supabaseSignOut(){try{if(sbSession?.access_token)await fetch(sbConfig.url+'/auth/v1/logout',{method:'POST',headers:{apikey:sbConfig.key,Authorization:'Bearer '+sbSession.access_token}})}catch(e){}if(remotePollTimer)clearInterval(remotePollTimer);remotePollTimer=null;sbSession=null;lastCloudSnapshotJson=null;lastCloudUpdatedAt=null;cloudConflict=false;pendingRemoteRow=null;sessionStorage.removeItem(SB_SESSION_KEY);cloudMsg('Đã đăng xuất Supabase. Dữ liệu trên trình duyệt vẫn được giữ.')}
 function restoreSbFields(){if($('#sbUrl'))$('#sbUrl').value=sbConfig.url||'';if($('#sbKey'))$('#sbKey').value=sbConfig.key||'';cloudMsg(sbSession?.access_token?'Có phiên đăng nhập trong tab này.':'Chưa đăng nhập.');}
 window.addEventListener('beforeunload',()=>{try{localStorage.setItem('daoVuKarateDB',JSON.stringify(db))}catch(e){}});
@@ -519,29 +571,16 @@ function renderReviewTools(){
 function loadReviewForm(){const s=db.students.find(x=>x.id===$('#reviewStudent')?.value);if(!s)return;const month=$('#reviewMonth').value||today().slice(0,7);const r=(s.monthlyReviews||[]).find(x=>x.month===month);$('#reviewText').value=r?.text||'';$('#reviewCoach').value=r?.coach||'';$('#reviewStatus').innerHTML=r?'<div class="notice success">Đã có nhận xét cho tháng này. Lưu sẽ cập nhật bản hiện có.</div>':'<div class="notice">Chưa có nhận xét cho tháng này.</div>'}
 function saveMonthlyReview(){if(role!=='coach'&&role!=='admin')return toast('Bạn không có quyền ghi nhận xét');const s=db.students.find(x=>x.id===$('#reviewStudent').value),month=$('#reviewMonth').value,textValue=$('#reviewText').value.trim(),coach=$('#reviewCoach').value.trim();if(!s||!month||!textValue)return toast('Vui lòng chọn võ sinh, tháng và nhập nhận xét');if(role==='coach'&&!coachClasses().some(c=>c.id===s.classId))return toast('Bạn chỉ được nhận xét võ sinh thuộc lớp mình phụ trách.');if(!Array.isArray(s.monthlyReviews))s.monthlyReviews=[];const old=s.monthlyReviews.find(x=>x.month===month);if(old){old.text=textValue;old.coach=coach;old.updatedAt=today()}else{s.monthlyReviews.push({month,text:textValue,coach,updatedAt:today()})}s.coachNote=textValue;s.learningResult='Nhận xét tháng '+month+': '+textValue;save(false,false);renderReviewTools();loadReviewForm();if(sbSession?.access_token){uploadCloudSnapshot().then(()=>{const st=$('#reviewStatus');if(st)st.innerHTML='<div class="notice success">Đã lưu và đồng bộ nhận xét tháng '+esc(month)+' lên Internet. Admin và phụ huynh sẽ thấy sau khi tải dữ liệu mới.</div>';toast('Đã đồng bộ nhận xét tháng '+month)}).catch(e=>{const st=$('#reviewStatus');if(st)st.innerHTML='<div class="notice danger">Nhận xét mới chỉ lưu trên thiết bị này; đồng bộ Internet thất bại: '+esc(e.message)+'</div>';toast('Chưa đồng bộ được nhận xét')})}else{const st=$('#reviewStatus');if(st)st.innerHTML='<div class="notice danger">Nhận xét hiện chỉ lưu trên thiết bị này, CHƯA đồng bộ lên Internet. Cần đăng nhập Supabase Auth bằng tài khoản được phân quyền trước khi nhận xét có thể hiển thị trên thiết bị Admin/phụ huynh.</div>';toast('Đã lưu trên máy; chưa đồng bộ Internet')} }
 
-// Gửi yêu cầu Hỏi đáp công khai bằng publishable key, không kế thừa phiên Admin/HLV.
-async function sbPublicFetch(path,opts={}){
- if(!sbConfig.url||!sbConfig.key)throw Error('Vui lòng nhập URL và publishable key, sau đó bấm Lưu cấu hình.');
- const headers={apikey:sbConfig.key,Authorization:'Bearer '+sbConfig.key,'Content-Type':'application/json',...(opts.headers||{})};
- headers.Authorization='Bearer '+sbConfig.key;
- let r;
- try{r=await fetch(sbConfig.url+path,{...opts,headers})}
- catch(e){throw Error('Không kết nối được Supabase. Kiểm tra Project URL, mạng Internet và API của dự án. Chi tiết: '+(e.message||'Failed to fetch'))}
- const tx=await r.text();let data=null;try{data=tx?JSON.parse(tx):null}catch{}
- if(!r.ok)throw Error((data?.message||data?.msg||data?.hint||tx||'HTTP '+r.status)+' (HTTP '+r.status+')');
- return data;
-}
-
 function escapeQuestion(v){return esc(String(v||''))}
 async function submitPublicQuestion(){
  const name=$('#questionName').value.trim(),phone=$('#questionPhone').value.trim(),body=$('#questionBody').value.trim(),msg=$('#questionSubmitMessage');
  if(!name||!phone||!body){msg.innerHTML='<div class="notice" style="background:#fff5df;color:#795b16">Vui lòng nhập họ tên, số điện thoại và nội dung câu hỏi.</div>';return}
- try{await sbPublicFetch('/rest/v1/public_questions',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({name,phone,question:body})});$('#questionBody').value='';msg.innerHTML='<div class="notice success">Đã gửi câu hỏi. Trung tâm sẽ phản hồi sớm. Cảm ơn bạn!</div>';await loadPublicAnsweredQuestions()}
+ try{await sbFetch('/rest/v1/public_questions',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({name,phone,question:body})});$('#questionBody').value='';msg.innerHTML='<div class="notice success">Đã gửi câu hỏi. Trung tâm sẽ phản hồi sớm. Cảm ơn bạn!</div>';await loadPublicAnsweredQuestions()}
  catch(e){msg.innerHTML='<div class="notice" style="background:#fff0f0;color:#a52830">Chưa gửi được câu hỏi: '+escapeQuestion(e.message)+'<br>Vui lòng thử lại sau hoặc liên hệ trực tiếp Trung tâm.</div>'}
 }
 async function loadPublicAnsweredQuestions(){
  const box=$('#publicAnsweredQuestions');if(!box)return;
- try{const rows=await sbPublicFetch('/rest/v1/public_questions?select=id,name,question,answer,answered_at&status=eq.answered&order=answered_at.desc&limit=30');box.innerHTML=rows?.length?rows.map(q=>`<article class="notice-card"><div style="flex:1"><strong>${escapeQuestion(q.name)}</strong><p style="margin:8px 0"><b>Câu hỏi:</b> ${escapeQuestion(q.question)}</p><div class="notice info"><b>Đạo Vũ trả lời:</b><br>${escapeQuestion(q.answer)}</div></div></article>`).join(''):'<div class="notice info">Chưa có câu hỏi được trả lời.</div>'}
+ try{const rows=await sbFetch('/rest/v1/public_questions?select=id,name,question,answer,answered_at&status=eq.answered&order=answered_at.desc&limit=30');box.innerHTML=rows?.length?rows.map(q=>`<article class="notice-card"><div style="flex:1"><strong>${escapeQuestion(q.name)}</strong><p style="margin:8px 0"><b>Câu hỏi:</b> ${escapeQuestion(q.question)}</p><div class="notice info"><b>Đạo Vũ trả lời:</b><br>${escapeQuestion(q.answer)}</div></div></article>`).join(''):'<div class="notice info">Chưa có câu hỏi được trả lời.</div>'}
  catch(e){box.innerHTML='<div class="notice info">Mục hỏi đáp sẽ hiển thị sau khi thiết lập dữ liệu trên máy chủ.</div>'}
 }
 async function loadAdminQuestions(){
