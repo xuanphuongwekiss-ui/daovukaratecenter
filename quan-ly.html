@@ -377,9 +377,19 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show'
 function className(id){return db.classes.find(c=>c.id===id)?.name||'Chưa xếp lớp'}
 // Mã hiển thị: Dv + ký hiệu riêng của lớp + số thứ tự toàn Trung tâm.
 // Không suy ra ký hiệu từ chữ đầu tên lớp (nhiều lớp cùng bắt đầu bằng "Đạo Vũ").
+function inferClassLetter(classObj,used=new Set()){
+ const raw=String(classObj?.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toUpperCase().trim();
+ const meaningful=raw.replace(/^DAO\s*VU\s*/,'').replace(/^DAOVU\s*/,'').trim();
+ const words=meaningful.split(/[^A-Z]+/).filter(Boolean);
+ // Ưu tiên chữ cái đầu của tên riêng sau cụm "Đạo Vũ"; không dùng chữ D chung.
+ for(const w of words){const ch=w[0];if(ch!=='D'&&!used.has(ch))return ch;}
+ // Nếu tên lớp chưa có tên riêng, yêu cầu Admin đặt ký hiệu, không tự gán D.
+ return '';
+}
 function studentClassInitial(classId){
  const c=(db.classes||[]).find(x=>String(x.id)===String(classId));
- return String(c?.studentCode||c?.codeLetter||'').trim().toUpperCase().replace(/[^A-Z]/g,'').slice(0,1);
+ const saved=String(c?.studentCode||c?.codeLetter||'').trim().toUpperCase().replace(/[^A-Z]/g,'').slice(0,1);
+ return saved==='D'?inferClassLetter(c):saved;
 }
 function studentSequence(student){
  const candidates=[student?.id,...(student?.codeAliases||[]),student?.legacyCode,student?.internalCode];
@@ -435,11 +445,10 @@ function normalizeAllStudentCodes(){
  try{
   const used=new Set();
   for(const c of db.classes||[]){
-   let code=String(c.studentCode||c.codeLetter||'').trim().toUpperCase();
-   if(!/^[A-Z]$/.test(code)){
-    const name=String(c.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toUpperCase().replace(/^DAO\s+VU\s+/,'').replace(/^DAOVU\s+/,'').trim();
-    const words=name.split(/[^A-Z]+/).filter(Boolean);
-    code=(words.map(w=>w[0]).find(ch=>!used.has(ch))||'').toUpperCase();
+   let code=String(studentClassInitial(c.id)||c.studentCode||c.codeLetter||'').trim().toUpperCase();
+   // "D" là ký hiệu cũ sinh ra từ cụm "Đạo Vũ", không phải ký hiệu riêng của lớp.
+   if(!/^[A-Z]$/.test(code)||code==='D'||used.has(code)){
+    code=inferClassLetter(c,used);
    }
    if(!code||used.has(code))throw Error('Không tự chọn được ký hiệu riêng, không trùng cho lớp "'+c.name+'". Hãy sửa ký hiệu lớp thủ công trước.');
    c.studentCode=code;used.add(code);
