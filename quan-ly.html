@@ -351,7 +351,7 @@ const seed={
 let publicFeedNotices=null,publicFeedClasses=null,publicFeedBusy=false;
 let db,role='parent',currentPage='home',modalSaveFn=null,activeCoachName='',activeCoachClassId='',activeCoachClassPin='',editingGradeId=null;
 function load(){try{db=JSON.parse(localStorage.getItem('daoVuKarateDB'))||structuredClone(seed)}catch(e){db=structuredClone(seed)};if(!db.settings)db.settings=structuredClone(seed.settings);if(!db.settings.centerLogo)db.settings.centerLogo=seed.settings.centerLogo;if(!db.settings.clubLogo)db.settings.clubLogo=seed.settings.clubLogo;if(!db.classes)db.classes=[];if(!db.students)db.students=[];if(!db.notices)db.notices=[];if(!Array.isArray(db.registrationRequests))db.registrationRequests=[];if(!db.attendance)db.attendance={};if(!db.payments)db.payments=[];if(!Array.isArray(db.grades))db.grades=[];if(!Array.isArray(db.examSheets))db.examSheets=[];if(!Array.isArray(db.photos))db.photos=[];if(!Array.isArray(db.centerEvents))db.centerEvents=[];if(!Array.isArray(db.achievements))db.achievements=[];if(!Array.isArray(db.libraryImages))db.libraryImages=[];if(!Array.isArray(db.classFund))db.classFund=[];db.students.forEach(s=>{if(!Array.isArray(s.monthlyReviews))s.monthlyReviews=[]});/* Bảo toàn toàn bộ giao dịch cũ; chỉ loại khỏi phép tính các khoản chưa đối chiếu hoặc thuộc hồ sơ không còn trong danh sách, tuyệt đối không xóa/chuyển giao dịch. */save(false,false)}
-function save(show=true,sync=true){localStorage.setItem('daoVuKarateDB',JSON.stringify(db));if(show)toast('Đã lưu trên thiết bị');if(sync){if(!sbSession?.access_token){cloudMsg('CẢNH BÁO: Thay đổi mới chỉ lưu trên thiết bị này. Cổng phụ huynh chưa nhận dữ liệu mới vì Admin chưa có phiên đăng nhập Supabase Auth.');return}if(cloudConflict){cloudMsg('CẢNH BÁO: Có xung đột dữ liệu. Chưa đồng bộ để tránh mất dữ liệu; hãy xử lý xung đột trước.');return}uploadCloudSnapshot().then(()=>cloudMsg('Đã lưu trên thiết bị và đồng bộ dữ liệu mới lên Supabase. Cổng phụ huynh sẽ đọc bản mới nhất khi tra cứu lại.')).catch(e=>cloudMsg('CẢNH BÁO: Dữ liệu mới chỉ lưu trên thiết bị; đồng bộ Supabase thất bại: '+e.message))}}
+function save(show=true,sync=true){localStorage.setItem('daoVuKarateDB',JSON.stringify(db));if(show)toast('Đã lưu trên thiết bị');if(sync){if(!sbSession?.access_token){cloudMsg('CHƯA ĐỒNG BỘ: Học phí mới chỉ lưu trên thiết bị này. Phụ huynh sẽ KHÔNG thấy thay đổi cho đến khi Admin đăng nhập Supabase Auth tại Cài đặt → Đồng bộ đám mây và bấm Đồng bộ ngay.');return}if(cloudConflict){cloudMsg('CẢNH BÁO: Có xung đột dữ liệu. Chưa đồng bộ để tránh mất dữ liệu; hãy xử lý xung đột trước.');return}uploadCloudSnapshot().then(()=>cloudMsg('Đã lưu trên thiết bị và đồng bộ dữ liệu mới lên Supabase. Cổng phụ huynh sẽ đọc bản mới nhất khi tra cứu lại.')).catch(e=>cloudMsg('CẢNH BÁO: Dữ liệu mới chỉ lưu trên thiết bị; đồng bộ Supabase thất bại: '+e.message))}}
 // Supabase cloud sync: manager-authenticated JSON snapshot; localStorage remains as offline fallback.
 const SB_CFG_KEY='daoVuSupabaseConfig', SB_SESSION_KEY='daoVuSupabaseSession';
 let sbConfig={url:'https://jndvtnpxepuwqutkkzin.supabase.co',key:'sb_publishable_rmBZOP_LspTasvW1t7LQhQ_seppbkWW'},sbSession=null,cloudBusy=false,cloudWriteQueue=Promise.resolve();
@@ -388,6 +388,8 @@ function paymentStudentId(p){return String(p.studentId??p.student_id??p.studentC
 function paymentMonth(p){return String(p.month||p.billingMonth||p.billing_month||String(p.date||p.createdAt||p.created_at||'').slice(0,7)).slice(0,7)}
 function isCountablePayment(p){const st=String(p.status||p.paymentStatus||p.payment_status||'confirmed').trim().toLowerCase();return !String(p.id||'').startsWith('legacy-')&&!['void','cancelled','canceled','deleted','rejected','pending','chờ xác nhận','chưa xác nhận'].includes(st)}
 function paidForMonth(s,month=selectedBillingMonth()){const rows=(db.payments||[]).filter(p=>isCountablePayment(p)&&paymentStudentId(p)===String(s.id)&&paymentMonth(p)===String(month));return rows.reduce((a,p)=>a+(Number(p.amount??p.paidAmount??p.paid_amount)||0),0)}
+function receivedForMonth(s,month){return (db.payments||[]).filter(p=>isCountablePayment(p)&&paymentStudentId(p)===String(s.id)&&paymentMonth(p)===String(month)).reduce((a,p)=>a+(Number(p.amount??p.paidAmount??p.paid_amount)||0),0)}
+function overpaidForMonth(s,month){const fee=tuitionFeeForMonth(s,month),received=receivedForMonth(s,month);return Math.max(0,received-fee)}
 function paidTotal(){const month=currentMonthKey();const currentIds=new Set((db.students||[]).map(s=>String(s.id)));return (db.payments||[]).filter(p=>isCountablePayment(p)&&currentIds.has(String(p.studentId))&&String(p.month||String(p.date||'').slice(0,7))===month).reduce((sum,p)=>sum+(Number(p.amount)||0),0)}
 function tuitionFeeForMonth(student,month){
  const base=Math.max(0,Number(student.fee)||Number(db.settings.tuition)||0);
@@ -429,7 +431,8 @@ function studentMonthLedger(student,month){
  else if(waived)status='Miễn học phí';
  else if(dueAmount===0)status='Đã hoàn thành';
  else status=paid>0?'Đã nộp một phần':'Chưa hoàn thành';
- return {month,fee,paid,due:dueAmount,status,beforeJoin,future,waived,active};
+ const overpaid=Math.max(0,paid-fee);
+ return {month,fee,paid,due:dueAmount,overpaid,status,beforeJoin,future,waived,active};
 }
 function due(s,month=selectedBillingMonth()){return Math.max(0,tuitionFeeForMonth(s,month)-paidForMonth(s,month))}
 function statusTag(status){let cls=status==='Đang học'?'status-active':status==='Tạm nghỉ'?'status-paused':status==='Đã nghỉ'?'status-left':['Đã đóng','Đã hoàn thành','Miễn học phí','Miễn','Có mặt'].includes(status)?'green':['Chưa đóng','Chưa hoàn thành','Vắng'].includes(status)?'red':['Còn thiếu','Còn nợ','Đã nộp một phần','Tạm nghỉ','Chưa đến kỳ','Chưa nhập học'].includes(status)?'gold':'gold';return `<span class="tag ${cls}">${esc(status)}</span>`}
@@ -581,7 +584,63 @@ function syncAttendanceCycle(force=false){
  return true;
 }
 function attendanceKey(){return ($('#attendanceDate').value||today())+'_'+($('#attendanceClass').value||'')}
-function renderAttendance(){syncAttendanceCycle();if(!$('#attendanceDate').value)$('#attendanceDate').value=today();const visibleClasses=role==='coach'?coachClasses():db.classes;const sel=$('#attendanceClass'),old=sel.value;sel.innerHTML=visibleClasses.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');if(visibleClasses.some(c=>c.id===old))sel.value=old;else if(visibleClasses.length)sel.value=visibleClasses[0].id;const cid=sel.value||'',key=attendanceKey();let arr=db.students.filter(s=>String(s.classId)===String(cid)&&(role==='admin'||['Đang học','Tạm nghỉ'].includes(s.status))&&(role!=='coach'||visibleClasses.some(c=>String(c.id)===String(s.classId))));$('#attendanceTable').innerHTML=arr.length?arr.map(s=>{let st=db.attendance[key]?.[s.id]||'Có mặt';return `<tr><td><div class="person">${s.avatar?`<img src="${s.avatar}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover">`:`<div class="mini-avatar">${esc(s.name[0])}</div>`}<div><strong>${esc(s.name)}</strong><small>${esc(s.id)}</small></div></div></td><td>${esc(className(s.classId))}</td><td><select data-attendance="${esc(s.id)}" style="padding:8px;border:1px solid var(--line);border-radius:8px"><option ${st==='Có mặt'?'selected':''}>Có mặt</option><option ${st==='Vắng'?'selected':''}>Vắng</option><option ${st==='Có phép'?'selected':''}>Có phép</option><option ${st==='Muộn'?'selected':''}>Muộn</option></select></td><td><label><input type="checkbox" data-fund-paid="${esc(s.id)}" ${classFundPaid(s.id,new Date().getFullYear())?'checked':''}> Đã đóng</label></td></tr>`}).join(''):`<tr><td colspan="4" class="empty">${role==='coach'?'Không có võ sinh đang học hoặc tạm nghỉ trong lớp được phân công.':'Lớp này chưa có võ sinh.'}</td></tr>`;const saveBtn=document.querySelector('#page-attendance .welcome button');if(saveBtn)saveBtn.style.display=role==='parent'?'none':''}
+function classScheduleWeekdays(schedule){
+ const t=String(schedule||'').toLocaleLowerCase('vi').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+ const days=new Set();
+ const aliases=[
+  {d:1,re:/\b(th[u]?\s*2|thu\s*hai|t2|hai)\b/g},
+  {d:2,re:/\b(th[u]?\s*3|thu\s*ba|t3|ba)\b/g},
+  {d:3,re:/\b(th[u]?\s*4|thu\s*tu|t4|tu)\b/g},
+  {d:4,re:/\b(th[u]?\s*5|thu\s*nam|t5|nam)\b/g},
+  {d:5,re:/\b(th[u]?\s*6|thu\s*sau|t6|sau)\b/g},
+  {d:6,re:/\b(th[u]?\s*7|thu\s*bay|t7|bay)\b/g},
+  {d:0,re:/\b(chu\s*nhat|cn|chu\s*nhat)\b/g}
+ ];
+ aliases.forEach(x=>{if(x.re.test(t))days.add(x.d);x.re.lastIndex=0});
+ return [...days].sort((a,b)=>a-b);
+}
+function scheduledDatesForMonth(cls,month){
+ const days=classScheduleWeekdays(cls?.schedule),[y,m]=String(month||today().slice(0,7)).split('-').map(Number);
+ if(!days.length||!y||!m)return [];
+ const last=new Date(y,m,0).getDate(),out=[];
+ for(let d=1;d<=last;d++){const dt=new Date(y,m-1,d);if(days.includes(dt.getDay()))out.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`)}
+ return out;
+}
+function renderAttendance(){
+ syncAttendanceCycle();
+ const visibleClasses=role==='coach'?coachClasses():db.classes,sel=$('#attendanceClass'),old=sel.value;
+ sel.innerHTML=visibleClasses.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+ if(visibleClasses.some(c=>String(c.id)===String(old)))sel.value=old;else if(visibleClasses.length)sel.value=visibleClasses[0].id;
+ const cid=sel.value||'',cls=visibleClasses.find(c=>String(c.id)===String(cid));
+ const dateEl=$('#attendanceDate');
+ if(role==='coach'&&cls){
+  const month=today().slice(0,7),dates=scheduledDatesForMonth(cls,month);
+  const prior=dateEl.dataset.sessionDate||dateEl.value;
+  dateEl.type='hidden';dateEl.removeAttribute('onchange');dateEl.readOnly=true;dateEl.hidden=true;
+  let select=$('#attendanceSessionDate');if(!select){select=document.createElement('select');select.id='attendanceSessionDate';select.className='role-select';select.style.minWidth='190px';dateEl.insertAdjacentElement('afterend',select)}
+  select.innerHTML=dates.map(d=>`<option value="${d}">${new Date(d+'T12:00:00').toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}</option>`).join('');
+  if(dates.length){select.value=dates.includes(prior)?prior:(dates.filter(d=>d<=today()).slice(-1)[0]||dates[0]);dateEl.value=select.value;dateEl.dataset.sessionDate=select.value}
+  select.onchange=()=>{dateEl.value=select.value;dateEl.dataset.sessionDate=select.value;renderAttendance()};
+  if(!dates.length){select.innerHTML='<option value="">Lịch lớp chưa ghi rõ thứ tập</option>';dateEl.value='';}
+ }else{
+  const session=$('#attendanceSessionDate');if(session)session.remove();
+  dateEl.hidden=false;dateEl.type='date';dateEl.readOnly=false;dateEl.setAttribute('onchange','renderAttendance()');
+  if(!dateEl.value)dateEl.value=today();
+ }
+ const key=attendanceKey();
+ const arr=db.students.filter(st=>String(st.classId)===String(cid)&&(role==='admin'||['Đang học','Tạm nghỉ'].includes(st.status))&&(role!=='coach'||visibleClasses.some(c=>String(c.id)===String(st.classId))));
+ const body=$('#attendanceTable');
+ body.innerHTML=arr.length?arr.map(st=>{
+  const status=db.attendance[key]?.[st.id]||'Có mặt';
+  return `<tr><td><div class="person">${st.avatar?`<img src="${st.avatar}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover">`:`<div class="mini-avatar">${esc((st.name||'?')[0])}</div>`}<div><strong>${esc(st.name)}</strong><small>${esc(st.id)}</small></div></div></td><td>${esc(className(st.classId))}</td><td><select data-attendance="${esc(st.id)}" style="padding:8px;border:1px solid var(--line);border-radius:8px"><option ${status==='Có mặt'?'selected':''}>Có mặt</option><option ${status==='Vắng'?'selected':''}>Vắng</option><option ${status==='Có phép'?'selected':''}>Có phép</option>${role==='admin'?`<option ${status==='Muộn'?'selected':''}>Muộn</option>`:''}</select></td>${role==='admin'?`<td><label><input type="checkbox" data-fund-paid="${esc(st.id)}" ${classFundPaid(st.id,new Date().getFullYear())?'checked':''}> Đã đóng</label></td>`:''}</tr>`;
+ }).join(''):`<tr><td colspan="${role==='coach'?3:4}" class="empty">${role==='coach'?'Không có võ sinh đang học hoặc tạm nghỉ trong lớp được phân công.':'Lớp này chưa có võ sinh.'}</td></tr>`;
+ const saveBtn=document.querySelector('#page-attendance .welcome button');if(saveBtn)saveBtn.style.display=role==='parent'?'none':'';
+ const head=$('#page-attendance .panel .toolbar');
+ if(head){let note=$('#coachScheduleHint');if(!note){note=document.createElement('div');note.id='coachScheduleHint';note.className='notice info';head.insertAdjacentElement('afterend',note)}
+  note.style.display=role==='coach'?'':'none';
+  if(role==='coach')note.textContent=cls&&classScheduleWeekdays(cls.schedule).length?`Lịch tập: ${cls.schedule}. Chỉ hiển thị các buổi theo lịch của lớp trong tháng hiện tại.`:'Lớp chưa có lịch tập theo thứ trong tuần. Admin cần cập nhật lịch lớp trước khi điểm danh.';
+ }
+}
 function monthKeyFromDate(value){return String(value||today()).slice(0,7)}
 function addTuitionWaiverMonths(student,fromMonth,toMonth=currentMonthKey()){
  if(!Array.isArray(student.tuitionWaivedMonths))student.tuitionWaivedMonths=[];
@@ -624,16 +683,26 @@ function updateStudentStatusFromAttendance(){
   }
  });
 }
-function saveAttendance(){
+async function saveAttendance(){
  if(role!=='admin'&&role!=='coach')return toast('Bạn không có quyền điểm danh');
- const allowedIds=new Set(db.students.filter(s=>(role==='admin'||['Đang học','Tạm nghỉ'].includes(s.status))&&(role!=='coach'||coachClasses().some(c=>String(c.id)===String(s.classId)))).map(s=>s.id));
- const cid=$('#attendanceClass').value;
+ const cid=$('#attendanceClass').value,cls=db.classes.find(c=>String(c.id)===String(cid));
  if(role==='coach'&&!coachClasses().some(c=>String(c.id)===String(cid)))return toast('Bạn chỉ được điểm danh lớp được phân công.');
+ const date=$('#attendanceDate').value||'';
+ if(role==='coach'&&(!cls||!classScheduleWeekdays(cls.schedule).length||!scheduledDatesForMonth(cls,today().slice(0,7)).includes(date)))return toast('Ngày điểm danh không thuộc lịch tập của lớp. Admin cần kiểm tra lịch lớp.');
+ const allowedIds=new Set(db.students.filter(st=>String(st.classId)===String(cid)&&(role==='admin'||['Đang học','Tạm nghỉ'].includes(st.status))).map(st=>String(st.id)));
+ const records={};document.querySelectorAll('[data-attendance]').forEach(el=>{if(allowedIds.has(String(el.dataset.attendance)))records[el.dataset.attendance]=el.value});
+ if(role==='coach'){
+  if(!Object.keys(records).length)return toast('Lớp chưa có danh sách võ sinh để điểm danh.');
+  try{
+   await sbFetch('/rest/v1/rpc/coach_save_attendance',{method:'POST',body:JSON.stringify({p_class_id:String(cid),p_class_pin:String(activeCoachClassPin||''),p_session_date:date,p_records:records})});
+  }catch(err){return toast('Chưa đồng bộ được điểm danh lên Supabase: '+err.message+' · Cần cài hàm SQL coach_save_attendance.')}
+ }
  const key=attendanceKey();db.attendance[key]=db.attendance[key]||{};
- document.querySelectorAll('[data-attendance]').forEach(el=>{if(allowedIds.has(el.dataset.attendance))db.attendance[key][el.dataset.attendance]=el.value});document.querySelectorAll('[data-fund-paid]').forEach(el=>{if(allowedIds.has(el.dataset.fundPaid)&&el.checked)recordClassFund(el.dataset.fundPaid,new Date().getFullYear(),role==='coach'?(activeCoachName||'HLV'):'Admin');});
- updateStudentStatusFromAttendance();
- save();renderAttendance();renderAttendanceSummary();renderTuition();renderStudents();renderReports();
- renderClassFund();toast('Đã lưu điểm danh và cập nhật ghi nhận quỹ lớp (nếu được tích chọn).');
+ Object.entries(records).forEach(([id,status])=>{db.attendance[key][id]=status});
+ if(role==='admin')document.querySelectorAll('[data-fund-paid]').forEach(el=>{if(allowedIds.has(String(el.dataset.fundPaid))&&el.checked)recordClassFund(el.dataset.fundPaid,new Date().getFullYear(),'Admin')});
+ if(role==='admin'){updateStudentStatusFromAttendance();save()}else{localStorage.setItem('daoVuKarateDB',JSON.stringify(db))}
+ renderAttendance();renderAttendanceSummary();renderTuition();renderStudents();renderReports();if(role==='admin')renderClassFund();
+ toast(role==='coach'?'Đã lưu và gửi điểm danh lên hệ thống chung.':'Đã lưu điểm danh.');
 }
 function renderAttendanceSummary(){syncAttendanceCycle();const monthEl=$('#attendanceMonth');if(!monthEl)return;if(!monthEl.value)monthEl.value=(today()||new Date().toISOString().slice(0,10)).slice(0,7);const month=monthEl.value,filterClass=$('#attendanceSummaryClass'),old=filterClass.value,visibleClasses=role==='coach'?coachClasses():db.classes;filterClass.innerHTML=(role==='coach'?'':'<option value="">Tất cả lớp</option>')+visibleClasses.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');if(visibleClasses.some(c=>c.id===old))filterClass.value=old;else if(role==='coach'&&visibleClasses.length)filterClass.value=visibleClasses[0].id;const q=($('#attendanceSummarySearch')?.value||'').trim().toLowerCase();const students=db.students.filter(s=>s.status==='Đang học'&&(role!=='coach'||visibleClasses.some(c=>c.id===s.classId))&&(!filterClass.value||s.classId===filterClass.value)&&(`${s.name} ${s.id}`.toLowerCase().includes(q)));const records=Object.entries(db.attendance||{}).filter(([k])=>k.slice(0,7)===month);const rows=students.map(s=>{let present=0,late=0,absent=0,excused=0,total=0;records.forEach(([key,vals])=>{if(vals&&Object.prototype.hasOwnProperty.call(vals,s.id)){const st=vals[s.id];total++;if(st==='Có mặt')present++;else if(st==='Muộn')late++;else if(st==='Vắng')absent++;else if(st==='Có phép')excused++;}});const rate=total?Math.round((present+late)/total*100):null;return {s,present,late,absent,excused,total,rate}});const totalSessions=rows.reduce((a,r)=>a+r.total,0),totalPresent=rows.reduce((a,r)=>a+r.present+r.late,0);$('#attSumStudents').textContent=rows.length;$('#attSumSessions').textContent=totalSessions;$('#attSumPresent').textContent=totalPresent;$('#attSumRate').textContent=totalSessions?Math.round(totalPresent/totalSessions*100)+'%':'—';$('#attendanceSummaryTable').innerHTML=rows.length?rows.map(r=>`<tr><td><div class="person"><div class="mini-avatar">${esc((r.s.name||'?')[0])}</div><div><strong>${esc(r.s.name)}</strong><small>${esc(r.s.id)}</small></div></div></td><td>${esc(className(r.s.classId))}</td><td>${r.present}</td><td>${r.late}</td><td>${r.absent}</td><td>${r.excused}</td><td>${r.total}</td><td>${r.rate===null?'<span class="tag">Chưa có dữ liệu</span>':`<span class="tag ${r.rate>=80?'green':r.rate<50?'red':'gold'}">${r.rate}%</span>`}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">Không có võ sinh phù hợp.</td></tr>'}
 function exportAttendanceReport(){renderAttendanceSummary();const month=$('#attendanceMonth').value;const headers=['Mã võ sinh','Họ tên','Lớp','Có mặt','Đi muộn','Vắng','Có phép','Tổng buổi','Tỷ lệ chuyên cần'];const lines=[headers];const q=($('#attendanceSummarySearch')?.value||'').trim().toLowerCase();db.students.filter(s=>s.status==='Đang học'&&(!$('#attendanceSummaryClass').value||s.classId===$('#attendanceSummaryClass').value)&&(`${s.name} ${s.id}`.toLowerCase().includes(q))).forEach(s=>{let p=0,l=0,a=0,e=0,t=0;Object.entries(db.attendance||{}).filter(([k])=>k.slice(0,7)===month).forEach(([k,v])=>{if(v&&Object.prototype.hasOwnProperty.call(v,s.id)){t++;if(v[s.id]==='Có mặt')p++;else if(v[s.id]==='Muộn')l++;else if(v[s.id]==='Vắng')a++;else if(v[s.id]==='Có phép')e++;}});lines.push([s.id,s.name,className(s.classId),p,l,a,e,t,t?Math.round((p+l)/t*100)+'%':'']);});const csv='\ufeff'+lines.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bao-cao-chuyen-can-'+month+'.csv';a.click();URL.revokeObjectURL(url);toast('Đã xuất báo cáo chuyên cần tháng '+month)}
@@ -804,7 +873,8 @@ function paymentModal(id){
   const sid=formVal('studentId'),target=db.students.find(x=>String(x.id)===String(sid));
   const amount=Number(formVal('amount')),payMonth=formVal('month');
   if(!target||!Number.isFinite(amount)||amount<=0||!/^\d{4}-\d{2}$/.test(payMonth))return toast('Vui lòng kiểm tra võ sinh, tháng và số tiền');
-  db.payments.push({id:'pay_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),studentId:sid,amount,date:formVal('date')||today(),month:payMonth,method:formVal('method'),note:formVal('note'),status:'confirmed',confirmedAt:new Date().toISOString()});
+  const feeAtMonth=tuitionFeeForMonth(target,payMonth),alreadyReceived=paidForMonth(target,payMonth),overpayment=Math.max(0,amount-Math.max(0,feeAtMonth-alreadyReceived));
+  db.payments.push({id:'pay_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),studentId:sid,amount,date:formVal('date')||today(),month:payMonth,method:formVal('method'),note:formVal('note'),status:'confirmed',overpayment,confirmedAt:new Date().toISOString()});
   save();closeModal();if($('#billingMonth'))$('#billingMonth').value=payMonth;renderAll();
   const remaining=Math.max(0,tuitionFeeForMonth(target,payMonth)-paidForMonth(target,payMonth));
   toast(remaining===0?'Đã ghi nhận đủ học phí — Đã hoàn thành':'Đã ghi nhận khoản thu — tháng này còn '+money(remaining));
@@ -837,7 +907,7 @@ function openStudentTuitionLedger(studentId,yearArg){
   return {m,fee,paid,left,status,records,beforeJoin,future,waived};
  });
  const body=rows.map(r=>`<tr>
-  <td><b>${Number(r.m.slice(5,7))}/${year}</b></td><td>${r.beforeJoin||r.future?'—':`<div style="display:flex;gap:4px;align-items:center;min-width:150px"><input type="number" min="0" step="1000" id="tuitionFeeOverride_${r.m}" value="${r.fee}" style="width:105px"><button class="btn small" title="Lưu mức học phí điều chỉnh" onclick="saveStudentMonthFeeOverride('${String(s.id).replace(/'/g,"\\'")}','${r.m}')">Lưu</button>${s.tuitionOverrides&&Object.prototype.hasOwnProperty.call(s.tuitionOverrides,r.m)?`<button class="btn small" title="Khôi phục mức tự tính" onclick="resetStudentMonthFeeOverride('${String(s.id).replace(/'/g,"\\'")}','${r.m}')">↺</button>`:''}</div>`}</td><td>${money(r.paid)}</td><td style="font-weight:800;color:${r.left>0?'#b4232b':'#16803c'}">${r.beforeJoin||r.future||r.waived?'—':money(r.left)}</td>
+  <td><b>${Number(r.m.slice(5,7))}/${year}</b></td><td>${r.beforeJoin||r.future?'—':`<div style="display:flex;gap:4px;align-items:center;min-width:150px"><input type="number" min="0" step="1000" id="tuitionFeeOverride_${r.m}" value="${r.fee}" style="width:105px"><button class="btn small" title="Lưu mức học phí điều chỉnh" onclick="saveStudentMonthFeeOverride('${String(s.id).replace(/'/g,"\\'")}','${r.m}')">Lưu</button>${s.tuitionOverrides&&Object.prototype.hasOwnProperty.call(s.tuitionOverrides,r.m)?`<button class="btn small" title="Khôi phục mức tự tính" onclick="resetStudentMonthFeeOverride('${String(s.id).replace(/'/g,"\\'")}','${r.m}')">↺</button>`:''}</div>`}</td><td>${money(r.paid)}${r.overpaid>0?`<div class="tag green" style="margin-top:4px">Nộp thừa ${money(r.overpaid)}</div>`:''}</td><td style="font-weight:800;color:${r.left>0?'#b4232b':'#16803c'}">${r.beforeJoin||r.future||r.waived?'—':money(r.left)}</td>
   <td>${statusTag(r.status)}</td>
   <td>${!active||r.beforeJoin||r.future||r.waived||r.left<=0?'—':`<div style="display:flex;gap:6px;align-items:center;min-width:210px"><input type="number" min="1" step="1000" id="tuitionAmount_${r.m}" value="${r.left}" style="width:120px"><button class="btn small primary" onclick="recordStudentMonthPayment('${String(s.id).replace(/'/g,"\\'")}','${r.m}')">Ghi thu</button></div>`}
    ${r.records.length?`<details style="margin-top:6px"><summary>${r.records.length} giao dịch</summary>${r.records.map(p=>`<div style="font-size:12px;margin:5px 0">${esc(p.date||'')} · ${money(p.amount)} · ${esc(p.method||'')} <button class="btn small" onclick="editPaymentRecord(decodeURIComponent('${encodeURIComponent(String(p.id))}'))">Sửa</button> <button class="btn small danger" onclick="deletePaymentRecord(decodeURIComponent('${encodeURIComponent(String(p.id))}'))">Xóa</button></div>`).join('')}</details>`:''}
@@ -860,7 +930,8 @@ function recordStudentMonthPayment(studentId,month){
  const suggested=Math.max(0,tuitionFeeForMonth(s||{},month)-(s?paidForMonth(s,month):0));
  const amount=input&&String(input.value).trim()!==''?Number(input.value):suggested;
  if(!s||!Number.isFinite(amount)||amount<=0)return toast('Tháng này không còn khoản phải thu hoặc số tiền điều chỉnh không hợp lệ');
- db.payments.push({id:'pay_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),studentId:String(studentId),amount,date:today(),month,method:'Tiền mặt / chuyển khoản xác nhận thủ công',note:'Ghi nhận từ sổ học phí tháng',status:'confirmed',confirmedAt:new Date().toISOString()});
+ const feeAtMonth=tuitionFeeForMonth(s,month),alreadyReceived=paidForMonth(s,month),overpayment=Math.max(0,amount-Math.max(0,feeAtMonth-alreadyReceived));
+ db.payments.push({id:'pay_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),studentId:String(studentId),amount,date:today(),month,method:'Tiền mặt / chuyển khoản xác nhận thủ công',note:'Ghi nhận từ sổ học phí tháng',status:'confirmed',overpayment,confirmedAt:new Date().toISOString()});
  save();openStudentTuitionLedger(studentId,Number(month.slice(0,4)));renderTuition();toast('Đã cập nhật khoản thu '+month);
 }
 function manageStudentPayments(studentId){
