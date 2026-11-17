@@ -1195,4 +1195,112 @@ function downloadGalleryImage(src,name){const a=document.createElement('a');a.hr
 #page-attendance label:has(input[data-fund-paid]:checked){display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:20px;background:#e3f6e9;color:#146c37;font-weight:700}
 #page-attendance label:has(input[data-fund-paid]:not(:checked)){display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:20px;background:#ffe5e5;color:#ad2029;font-weight:700}
 
+
+/* Mobile-first readability patch: keep every header, label and attendance field inside phone width. */
+@media screen and (max-width: 720px) {
+  html, body { width:100%; max-width:100%; overflow-x:hidden; }
+  .app, .main, .content, .section.active { width:100%; min-width:0; max-width:100%; }
+  .dv-topbar {
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) auto !important;
+    grid-template-areas:"brand actions" "address address";
+    gap:7px 8px !important;
+    height:auto !important; min-height:0 !important;
+    padding:10px 12px !important;
+    align-items:center !important;
+  }
+  .dv-topbar .topbar-left { grid-area:brand; min-width:0; width:100%; gap:7px; }
+  .dv-topbar .mobile-menu { flex:0 0 38px; width:38px; min-width:38px; height:38px; padding:0; }
+  .dv-topbar .header-center-brand { min-width:0; width:100%; text-align:left !important; white-space:normal !important; }
+  .dv-topbar #headerCenterName {
+    display:block !important; white-space:normal !important; overflow-wrap:anywhere;
+    font-size:clamp(12px,3.7vw,16px) !important; line-height:1.22 !important;
+    max-width:100%; letter-spacing:0 !important;
+  }
+  .dv-topbar .header-karate-name {
+    white-space:normal !important; font-size:clamp(15px,4.2vw,19px) !important;
+    line-height:1.2 !important; margin-top:2px;
+  }
+  .dv-topbar #headerCenterMotto {
+    white-space:normal !important; font-size:clamp(10px,3vw,13px) !important;
+    line-height:1.25 !important; margin-top:2px;
+  }
+  .dv-topbar .top-actions {
+    grid-area:actions; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:5px; min-width:0;
+  }
+  .dv-topbar .role-select { width:112px; max-width:112px; min-width:0; padding:7px 5px; font-size:12px !important; }
+  .dv-topbar .avatar { width:30px; height:30px; font-size:12px; }
+  .dv-topbar .header-right-brand {
+    grid-area:address; display:flex !important; flex-direction:column;
+    align-items:flex-start !important; text-align:left !important;
+    padding:0 0 0 45px !important; min-width:0; width:100%;
+  }
+  .dv-topbar .header-right-brand span { font-size:11px !important; line-height:1.35; overflow-wrap:anywhere; }
+  .content { padding:13px 10px 34px !important; }
+  .welcome { display:flex !important; flex-direction:column; align-items:stretch !important; gap:10px; margin-bottom:14px; }
+  .welcome h2 { font-size:clamp(19px,5.5vw,23px) !important; line-height:1.25; overflow-wrap:anywhere; }
+  .welcome p { font-size:13px; line-height:1.5; }
+  .welcome .btn, #saveAttendanceBtn { min-height:46px; width:100%; justify-content:center; }
+  .panel { padding:12px !important; border-radius:13px; }
+  .panel-head { align-items:flex-start; flex-wrap:wrap; gap:8px; }
+  .panel-head h3 { font-size:18px !important; line-height:1.3; }
+  .panel-head p { font-size:13px !important; line-height:1.5; }
+  .toolbar { display:flex; flex-direction:column; align-items:stretch; gap:9px; }
+  .toolbar > *, .toolbar select, .toolbar input, .toolbar .search { width:100%; min-width:0 !important; max-width:100%; }
+  .toolbar .search input { width:100%; }
+  #page-attendance .notice { font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
+  #page-attendance .stats { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:8px; }
+  #page-attendance .stat { min-width:0; padding:10px; gap:5px; }
+  #page-attendance .stat .label { font-size:11px; line-height:1.3; }
+  #page-attendance .stat .value { font-size:21px; overflow-wrap:anywhere; }
+  /* Attendance rows become readable stacked cards instead of clipped wide columns. */
+  #page-attendance #attendanceTable tr,
+  #page-attendance #attendanceSummaryTable tr {
+    display:block; padding:8px 10px; border-bottom:1px solid var(--line);
+    white-space:normal;
+  }
+  #page-attendance #attendanceTable thead,
+  #page-attendance #attendanceSummaryTable thead { display:none; }
+  #page-attendance #attendanceTable td,
+  #page-attendance #attendanceSummaryTable td {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    width:100%; min-width:0; padding:7px 2px !important;
+    border:0; white-space:normal; text-align:right; font-size:13px;
+    overflow-wrap:anywhere;
+  }
+  #page-attendance #attendanceTable td:first-child,
+  #page-attendance #attendanceSummaryTable td:first-child {
+    justify-content:flex-start; text-align:left; font-size:15px; font-weight:700;
+  }
+  #page-attendance #attendanceTable td:nth-child(2)::before { content:"Lớp"; color:var(--muted); font-weight:700; text-align:left; }
+  #page-attendance #attendanceTable td:nth-child(3)::before { content:"Trạng thái"; color:var(--muted); font-weight:700; text-align:left; }
+  #page-attendance #attendanceTable td:nth-child(4)::before { content:"Quỹ lớp"; color:var(--muted); font-weight:700; text-align:left; }
+  #page-attendance #attendanceTable td select { width:auto; max-width:62%; min-width:130px; font-size:15px !important; padding:9px 8px !important; }
+  #page-attendance #attendanceTable td label { max-width:60%; font-size:13px; }
+  #page-attendance #attendanceTable td input[type=checkbox] { width:20px; height:20px; }
+  #page-attendance #attendanceSummaryTable td:nth-child(2)::before { content:"Lớp"; color:var(--muted); font-weight:700; }
+  #page-attendance #attendanceSummaryTable td:nth-child(3)::before { content:"Có mặt"; color:var(--muted); font-weight:700; }
+  #page-attendance #attendanceSummaryTable td:nth-child(4)::before { content:"Đi muộn"; color:var(--muted); font-weight:700; }
+  #page-attendance #attendanceSummaryTable td:nth-child(5)::before { content:"Vắng"; color:var(--muted); font-weight:700; }
+  #page-attendance #attendanceSummaryTable td:nth-child(6)::before { content:"Có phép"; color:var(--muted); font-weight:700; }
+  #page-attendance #attendanceSummaryTable td:nth-child(7)::before { content:"Tổng buổi"; color:var(--muted); font-weight:700; }
+  #page-attendance #attendanceSummaryTable td:nth-child(8)::before { content:"Chuyên cần"; color:var(--muted); font-weight:700; }
+  #page-attendance .table-wrap { overflow-x:hidden !important; }
+  #page-attendance .coach-fund-panel .table-wrap { overflow-x:auto !important; }
+  #page-attendance .coach-fund-panel table { min-width:700px; }
+  #attendanceQuickAccess { right:10px !important; bottom:12px !important; padding:11px 15px !important; font-size:13px !important; max-width:calc(100vw - 20px); }
+  .toast { left:10px; right:10px; bottom:76px; text-align:center; }
+  .modal-backdrop { padding:8px; }
+  .modal { width:100%; max-height:94dvh; }
+  .modal-body { padding:14px; }
+}
+@media screen and (max-width:390px) {
+  .dv-topbar .role-select { width:96px; max-width:96px; font-size:11px !important; }
+  .dv-topbar #headerCenterName { font-size:12px !important; }
+  .dv-topbar .header-karate-name { font-size:15px !important; }
+  .dv-topbar .header-right-brand { padding-left:42px !important; }
+  .content { padding-left:8px !important; padding-right:8px !important; }
+  #page-attendance #attendanceTable td select { min-width:112px; }
+}
 </style>
