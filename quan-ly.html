@@ -1100,7 +1100,7 @@ async function purgeAllStudentData(){
  if(role!=='admin')return toast('Chỉ Admin mới được thực hiện thao tác này.');
  if(!sbSession?.access_token||String(sbSession.user?.id||'')==='')return toast('Hãy đăng nhập tài khoản Admin Supabase trước khi xóa.');
  if(cloudBusy||cloudConflict)return toast('Đang đồng bộ hoặc có xung đột dữ liệu. Chưa xóa bất kỳ dữ liệu nào.');
- const ok=confirm('XÓA THEO PHẠM VI ĐÃ DUYỆT?\n\nSẽ xóa: toàn bộ hồ sơ võ sinh và dữ liệu cá nhân/học tập liên kết; khoản thanh toán gắn với các võ sinh đó; TOÀN BỘ quỹ lớp; TOÀN BỘ ảnh thư viện; TOÀN BỘ 4 yêu cầu đăng ký bị từ chối (và các yêu cầu đang lưu trong danh sách đăng ký).\n\nGiữ nguyên: 4 lớp và thông tin HLV, lịch lớp, cài đặt, logo, tài khoản, phân quyền, giao dịch không liên quan và mọi dữ liệu chung ngoài phạm vi trên.\n\nHệ thống sẽ tải bản sao lưu trước khi ghi dữ liệu mới lên Supabase và đọc lại để xác minh. Tiếp tục?');
+ const ok=confirm('XÓA THEO PHẠM VI ĐÃ DUYỆT?\n\nSẽ xóa: toàn bộ hồ sơ võ sinh và dữ liệu cá nhân/học tập liên kết; khoản thanh toán gắn với các võ sinh đó; TOÀN BỘ quỹ lớp; TOÀN BỘ ảnh thư viện; các yêu cầu đăng ký có trạng thái Từ chối.\n\nGiữ nguyên: 4 lớp và thông tin HLV, lịch lớp, cài đặt, logo, tài khoản, phân quyền, giao dịch không liên quan, yêu cầu đăng ký chưa bị từ chối và mọi dữ liệu chung ngoài phạm vi trên.\n\nHệ thống tải bản sao lưu đầy đủ trước khi ghi lên Supabase, sau đó đọc lại để xác minh. Tiếp tục?');
  if(!ok)return;
  const typed=prompt('Xác nhận lần cuối. Nhập chính xác: XOA DU LIEU DA CHOT');
  if(typed!=='XOA DU LIEU DA CHOT')return toast('Đã hủy. Không có dữ liệu nào bị xóa.');
@@ -1109,43 +1109,47 @@ async function purgeAllStudentData(){
    const remote=await fetchCloudRow();
    if(!remote?.payload)throw Error('Không tìm thấy bản dữ liệu đám mây. Đã dừng, chưa xóa.');
    const remoteJson=JSON.stringify(remote.payload);
-   if(!lastCloudSnapshotJson||remoteJson!==lastCloudSnapshotJson)throw Error('Bản dữ liệu trên Supabase chưa khớp với bản đã tải trên thiết bị. Đã dừng để tránh ghi đè dữ liệu mới. Hãy tải và đối chiếu bản Internet trước.');
+   if(!lastCloudSnapshotJson||remoteJson!==lastCloudSnapshotJson)throw Error('Bản dữ liệu trên Supabase chưa khớp với bản đã tải trên thiết bị. Đã dừng để tránh ghi đè dữ liệu mới. Hãy tải bản Internet và xử lý xung đột trước.');
    const working=JSON.parse(remoteJson);
    const students=Array.isArray(working.students)?working.students:[];
    const ids=new Set(),codes=new Set();
    students.forEach(st=>{
      ['id','studentId','student_id'].forEach(k=>{if(st?.[k]!=null&&String(st[k]).trim())ids.add(String(st[k]).trim())});
-     ['code','studentCode','student_code','maVoSinh','ma_vo_sinh'].forEach(k=>{if(st?.[k]!=null&&String(st[k]).trim())codes.add(String(st[k]).trim())});
+     ['id','code','studentCode','student_code','maVoSinh','ma_vo_sinh'].forEach(k=>{if(st?.[k]!=null&&String(st[k]).trim()&&/^Dv[A-Z]\d+$/i.test(String(st[k]).trim()))codes.add(String(st[k]).trim())});
    });
-   const linked=o=>!!o&&typeof o==='object'&&['studentId','student_id','studentCode','student_code','maVoSinh','ma_vo_sinh'].some(k=>o[k]!=null&&(ids.has(String(o[k]).trim())||codes.has(String(o[k]).trim())));
+   const linked=o=>!!o&&typeof o==='object'&&['studentId','student_id','studentCode','student_code','maVoSinh','ma_vo_sinh','student'].some(k=>o[k]!=null&&(ids.has(String(o[k]).trim())||codes.has(String(o[k]).trim())));
    const countLinked=a=>(Array.isArray(a)?a:[]).filter(linked).length;
-   const counts={students:students.length,payments:countLinked(working.payments),attendance:0,grades:countLinked(working.grades),examRows:0,photos:countLinked(working.photos),achievements:countLinked(working.achievements),notices:countLinked(working.notices),classFund:Array.isArray(working.classFund)?working.classFund.length:0,libraryImages:Array.isArray(working.libraryImages)?working.libraryImages.length:0,registrationRequests:Array.isArray(working.registrationRequests)?working.registrationRequests.length:0};
-   // Retain permanent code tombstones to prevent reuse after deletion.
-   working._retiredStudentCodes=Array.from(new Set([...(Array.isArray(working._retiredStudentCodes)?working._retiredStudentCodes:[]),...codes]));
-   working._studentCodeSequenceFloor=Math.max(Number(working._studentCodeSequenceFloor)||0,...Array.from(codes).map(c=>Number((c.match(/(\d+)$/)||[])[1])||0));
+   const rejectedRequest=x=>{const v=String(x?.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();return ['tu choi','rejected','declined'].includes(v)};
+   const counts={students:students.length,payments:countLinked(working.payments),attendance:0,grades:countLinked(working.grades),examRows:0,photos:countLinked(working.photos),achievements:countLinked(working.achievements),notices:countLinked(working.notices),centerEvents:countLinked(working.centerEvents),classFund:Array.isArray(working.classFund)?working.classFund.length:0,libraryImages:Array.isArray(working.libraryImages)?working.libraryImages.length:0,registrationRequests:(Array.isArray(working.registrationRequests)?working.registrationRequests:[]).filter(rejectedRequest).length};
+   // Preserve every issued code permanently and keep the global sequence above the highest deleted code.
+   const retired=new Set(Array.isArray(working._retiredStudentCodes)?working._retiredStudentCodes:[]);
+   codes.forEach(c=>retired.add(c));
+   working._retiredStudentCodes=Array.from(retired);
+   const maxDeleted=Array.from(codes).reduce((m,c)=>Math.max(m,Number((c.match(/(\d+)$/)||[])[1])||0),0);
+   working._studentCodeSequenceFloor=Math.max(Number(working._studentCodeSequenceFloor)||0,maxDeleted);
    working.students=[];
-   if(working.attendance&&typeof working.attendance==='object')Object.keys(working.attendance).forEach(k=>{const v=working.attendance[k];if(v&&typeof v==='object'&&!Array.isArray(v)){ids.forEach(id=>{if(Object.prototype.hasOwnProperty.call(v,id)){counts.attendance++;delete v[id]}})}});
+   if(working.attendance&&typeof working.attendance==='object')Object.keys(working.attendance).forEach(k=>{const v=working.attendance[k];if(v&&typeof v==='object'&&!Array.isArray(v)){ids.forEach(id=>{if(Object.prototype.hasOwnProperty.call(v,id)){counts.attendance++;delete v[id]}});codes.forEach(code=>{if(Object.prototype.hasOwnProperty.call(v,code)){counts.attendance++;delete v[code]}})}});
    working.grades=(Array.isArray(working.grades)?working.grades:[]).filter(x=>!linked(x));
    working.examSheets=(Array.isArray(working.examSheets)?working.examSheets:[]).map(sh=>{const rows=Array.isArray(sh.rows)?sh.rows:[];counts.examRows+=rows.filter(linked).length;return {...sh,rows:rows.filter(r=>!linked(r))}});
    working.photos=(Array.isArray(working.photos)?working.photos:[]).filter(x=>!linked(x));
    working.achievements=(Array.isArray(working.achievements)?working.achievements:[]).filter(x=>!linked(x));
    working.notices=(Array.isArray(working.notices)?working.notices:[]).filter(x=>!linked(x)&&x.audience!=='Cho một học sinh');
+   working.centerEvents=(Array.isArray(working.centerEvents)?working.centerEvents:[]).filter(x=>!linked(x));
    if(Array.isArray(working.reviews))working.reviews=working.reviews.filter(x=>!linked(x));
-   // Explicitly approved full-scope removals:
    working.payments=(Array.isArray(working.payments)?working.payments:[]).filter(x=>!linked(x));
    working.classFund=[];
    working.libraryImages=[];
-   working.registrationRequests=[];
-   // Classes/coaches, settings/logos, roles, unrelated financial records and shared content remain untouched.
+   working.registrationRequests=(Array.isArray(working.registrationRequests)?working.registrationRequests:[]).filter(x=>!rejectedRequest(x));
+   // Classes/coaches, settings/logos, accounts, permissions, unrelated payments and non-rejected requests remain untouched.
    const backupName='DAO-VU-SAO-LUU-TRUOC-KHI-XOA-THEO-PHAM-VI-DA-CHOT-'+today()+'.json';
    download(backupName,JSON.stringify(remote.payload,null,2),'application/json');
    db=working;localStorage.setItem('daoVuKarateDB',JSON.stringify(db));
    await uploadCloudSnapshot();
    const verify=await fetchCloudRow();
-   if(!verify?.payload||JSON.stringify(verify.payload)!==JSON.stringify(db))throw Error('Đã gửi dữ liệu nhưng đọc lại Supabase không khớp. Dừng và giữ tệp sao lưu vừa tải để đối chiếu.');
+   if(!verify?.payload||JSON.stringify(verify.payload)!==JSON.stringify(db))throw Error('Đã gửi dữ liệu nhưng đọc lại Supabase không khớp. Giữ tệp sao lưu để đối chiếu; chưa xác nhận hoàn tất.');
    lastCloudSnapshotJson=JSON.stringify(db);localStorage.setItem(SB_LAST_SYNC_KEY,lastCloudSnapshotJson);lastCloudUpdatedAt=verify.updated_at||null;
    pendingRemoteRow=null;cloudConflict=false;renderAll();
-   cloudMsg('Đã hoàn tất và xác minh Supabase. Đã xóa '+counts.students+' hồ sơ võ sinh, '+counts.payments+' khoản thanh toán liên quan, toàn bộ quỹ lớp ('+counts.classFund+'), ảnh thư viện ('+counts.libraryImages+') và đăng ký ('+counts.registrationRequests+'). 4 lớp, HLV, cài đặt và dữ liệu ngoài phạm vi được giữ nguyên.');
+   cloudMsg('Đã hoàn tất và xác minh Supabase. Đã xóa '+counts.students+' hồ sơ võ sinh, '+counts.payments+' khoản thanh toán liên quan, toàn bộ quỹ lớp ('+counts.classFund+'), ảnh thư viện ('+counts.libraryImages+') và '+counts.registrationRequests+' yêu cầu đăng ký bị từ chối. Đã giữ nguyên lớp, HLV, cài đặt, tài khoản, phân quyền và dữ liệu ngoài phạm vi.');
    toast('Đã xóa theo phạm vi đã duyệt và xác minh đồng bộ thành công.');
  }catch(e){cloudMsg('Không hoàn tất thao tác xóa: '+e.message);toast('Đã dừng thao tác: '+e.message);}
 }
